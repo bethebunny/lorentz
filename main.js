@@ -39,10 +39,36 @@ class Matrix2D {
         this.c = c;
         this.d = d;
     }
+    timesScalar = s => new Matrix2D(this.a * s, this.b * s, this.c * s, this.d * s);
     timesVector = ({x, y}) => new Vector(this.a * x + this.b * y, this.c * x + this.d * y);
+    timesMatrix = ({a, b, c, d}) => new Matrix2D(
+        this.a * a + this.b * c,
+        this.a * b + this.b * d,
+        this.c * a + this.d * c,
+        this.c * b + this.d * d,
+    );
+    inverse() {
+        let {a, b, c, d} = this;
+        let determinant = a * d - b * c;
+        return new Matrix2D(d, -b, -c, a).timesScalar(1 / determinant);
+    }
+    static fromEigenvectors(v1, e1, v2, e2) {
+        let scale = new Matrix2D(e1, 0, 0, e2);
+        let basis = new Matrix2D(v1.x, v2.x, v1.y, v2.y);
+        return basis.timesMatrix(scale.timesMatrix(basis.inverse()));
+    }
 }
 
 let rotationMatrix = theta => new Matrix2D(Math.cos(theta), -Math.sin(theta), Math.sin(theta), Math.cos(theta));
+
+let observedPoint = (reference, observing, velocity, gamma) => {
+    // TODO: figure out the transformation matrix for this all :P
+    // whoops, and we actually need the inverse transformation of this xD
+    let dp = observing.minus(reference);
+    let orth = dp.project(velocity.orthogonal());
+    let coll = dp.project(velocity);
+    return orth.plus(coll.times(1 / gamma)).plus(reference);
+}
 
 class Vector {
     constructor(x = 0, y = 0) {
@@ -52,6 +78,8 @@ class Vector {
     relativisticPlus(other) {
         // https://en.wikipedia.org/wiki/Wigner_rotation#Two_general_boosts
         // Not associative or commutative, also results in a net rotation (thomasRotation)
+        // I think there's something wrong here, close enough to C a boost perpendicular to the original speed
+        // ends up moving in the opposite direction of the new boost
         let u = this, v = other;
         let u_gamma = u.gamma();
         let u_dot_v = u.dot(v);
@@ -99,19 +127,26 @@ class Viewport {
         this.height = height;
     }
     corner(center) {
+        // Return the corner in world coordinates
         return center.minus(new Vector(this.width / (2 * PIXELS_PER_METER), this.height / (2 * PIXELS_PER_METER)));
     }
-    inViewportCoordinates({x, y}, {x: cx, y: cy}) {
+
+    pixelCoordinates({x, y}, {x: cx, y: cy}) {
         return new Vector((x - cx) * PIXELS_PER_METER + (this.width / 2), (y - cy) * PIXELS_PER_METER + (this.height / 2));
     }
 
     draw(ctx, center, objects) {
+        // center in world coordinates
         drawBackground(ctx, this.width, this.height);
         this.drawGrid(ctx, center);
-        this.drawContractedGrid(ctx, center, objects[0].velocity);  // TODO: better encapsulation for player velocity
+        let frameVelocity = objects[0].velocity;  // TODO: better encapsulation for player velocity
+        let transform = Matrix2D.fromEigenvectors(frameVelocity, frameVelocity.gamma(), frameVelocity.orthogonal(), 1);
+        let inverse = transform.inverse();
+        this.drawContractedGrid(ctx, center, frameVelocity);
         objects.forEach(object => {
             let {position} = object;
-            let viewportPosition = this.inViewportCoordinates(position, center);
+            let observedPosition = inverse.timesVector(position.minus(center)).plus(center);
+            let viewportPosition = this.pixelCoordinates(observedPosition, center);
             // TODO: draw them as long as any pixels would appear in the viewport
             if (viewportPosition.x < 0 || viewportPosition.y < 0 || viewportPosition.x > this.width || viewportPosition > this.height) {
                 return;
@@ -119,6 +154,7 @@ class Viewport {
             object.draw(ctx, viewportPosition);
         });
     }
+
     visibleGridPoints = function* (center) {
         let {x, y} = this.corner(center);
         for (let i = x - posMod(x, D); i < x + this.width / PIXELS_PER_METER; i += D) {
@@ -127,23 +163,26 @@ class Viewport {
             }
         }
     };
+
+    viewportWorldCoordinates(center, velocity) {
+        let corner = this.corner(center);
+    }
+
     drawGrid(ctx, center) {
         for (let gridPoint of this.visibleGridPoints(center)) {
-            let {x, y} = this.inViewportCoordinates(gridPoint, center);
+            let {x, y} = this.pixelCoordinates(gridPoint, center);
             drawPoint(ctx, x, y, 'white', 3);
         }
-    };
+    }
+
     drawContractedGrid(ctx, center, velocity) {
         let gamma = velocity.gamma();
         for (let gridPoint of this.visibleGridPoints(center)) {
-            let dp = gridPoint.minus(center);
-            let orth = dp.project(velocity.orthogonal());
-            let coll = dp.project(velocity);
-            let observedPoint = orth.plus(coll.times(1 / gamma)).plus(center);
-            let {x, y} = this.inViewportCoordinates(observedPoint, center);
+            let observed = observedPoint(center, gridPoint, velocity, gamma);
+            let {x, y} = this.pixelCoordinates(observed, center);
             drawPoint(ctx, x, y, 'green', 3);
         }
-    };
+    }
 }
 
 let drawBackground = (ctx, width, height) => {
@@ -230,6 +269,8 @@ let drawable = Base => class extends Base {
 let DrawableObject = drawable(PhysicalObject);
 
 class Ship extends DrawableObject {
+    size = 0.3
+    color = 'white'
     constructor(
         position,
         velocity = new Vector(),
@@ -237,8 +278,6 @@ class Ship extends DrawableObject {
     ) {
         super(position, velocity=velocity, direction=direction)
         this.thrust = 0;
-        this.color = 'white';
-        this.size = 30;
     }
     properForces() {
         return [this.direction.times(this.thrust), ...super.properForces()];
@@ -248,7 +287,7 @@ class Ship extends DrawableObject {
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(viewportCenter.x, viewportCenter.y);
-        let p = viewportCenter.plus(this.direction.times(this.size / 2));
+        let p = viewportCenter.plus(this.direction.times(this.size * PIXELS_PER_METER / 2));
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
 
@@ -256,19 +295,19 @@ class Ship extends DrawableObject {
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(viewportCenter.x, viewportCenter.y, this.size / 2, 0, 2 * Math.PI);
+        ctx.arc(viewportCenter.x, viewportCenter.y, this.size * PIXELS_PER_METER / 2, 0, 2 * Math.PI);
         ctx.stroke();
     }
 }
 
 class Station extends DrawableObject {
-    size = 300
+    size = 3.6
     draw(ctx, viewportCenter) {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(viewportCenter.x, viewportCenter.y);
-        let p = viewportCenter.plus(this.direction.times(this.size / 2));
+        let p = viewportCenter.plus(this.direction.times(this.size * PIXELS_PER_METER / 2));
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
 
@@ -276,7 +315,7 @@ class Station extends DrawableObject {
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(viewportCenter.x, viewportCenter.y, this.size / 2, 0, 2 * Math.PI);
+        ctx.arc(viewportCenter.x, viewportCenter.y, this.size * PIXELS_PER_METER / 2, 0, 2 * Math.PI);
         ctx.stroke();
         ctx.strokeText(`clock: ${this.t.toFixed(3)}`, viewportCenter.x, viewportCenter.y);
     }
