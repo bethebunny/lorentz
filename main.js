@@ -9,26 +9,26 @@ const TICK_MS = 30;
 
 
 /* TODO:
-      - Display all visible grid coordinates
-      - Minimap
-      - Observe other entities delayed by distance
-      - Detached / remote viewing
-      - Triangular ship
-      - Drawable lorentz contraction
-      - Speed up animations based on time dilation
-      - Have Wigner rotation rotate the world rather than the player
-      - Thomas precession
-        - Angular rotation / momentum
-      - Collisions
-      - Have the ship always point upwards and rotate space instead?
-        - Render a compass
-      - Interact with stations
-      - Doppler effect on color visuals
-        - Likely needs to be de-emphasized to be actually visible at high speeds x
-      
-      - Much later
-        - Gravity
-        - General relativity
+    - Display all visible grid coordinates
+    - Minimap
+    - Observe other entities delayed by distance
+    - Detached / remote viewing
+    - Triangular ship
+    - Drawable lorentz contraction
+    - Speed up animations based on time dilation
+    - Have Wigner rotation rotate the world rather than the player
+    - Thomas precession
+    - Angular rotation / momentum
+    - Collisions
+    - Have the ship always point upwards and rotate space instead?
+    - Render a compass
+    - Interact with stations
+    - Doppler effect on color visuals
+    - Likely needs to be de-emphasized to be actually visible at high speeds x
+    
+    - Much later
+    - Gravity
+    - General relativity
 */
 
 
@@ -331,15 +331,15 @@ class Game {
     }
     drawDebugInfo = ctx => {
         let acceleration = this.player.properAcceleration();
-        ctx.font = '15px Arial';
-        ctx.strokeStyle = 'white';
+        ctx.font = '10px Major Mono Display';
+        ctx.fillStyle = 'white';
         [
             `Position ${this.player.position}`,
             `Beta: ${(this.player.velocity.magnitude() / C).toFixed(5)}c`,
             `Velocity direction: ${this.player.velocity.unit()}`,
             `Acceleration: ${acceleration.x.toFixed(3)}, ${acceleration.y.toFixed(3)}`,
             `Time: ${this.player.t.toFixed(3)}`,
-        ].forEach((message, i) => ctx.strokeText(message, 10, (i + 1) * 20));
+        ].forEach((message, i) => ctx.fillText(message, 10, (i + 1) * 20));
     }
     draw = ctx => {
         this.viewport.draw(ctx, this.player.position, [this.player, ...this.stations]);
@@ -391,7 +391,7 @@ var main = () => {
     var canvas = document.getElementById("main");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    var ctx = canvas.getContext("2d");
+    var ctx = canvas.getContext("2d", {alpha: false});
     let game = new Game(window.innerWidth, window.innerHeight);
     game.run(ctx);
     document.addEventListener('keypress', game.handleKeyPress);
