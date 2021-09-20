@@ -1,18 +1,18 @@
 //import { PIXI } from "https://pixijs.download/release/pixi.js";
 
-const C = 100; // Speed of light
+const C = 100; // Speed of light in meters per second
 const C2 = C * C;
-const D = 1; // Pixels between grid points
-// Hmm we need a way to transform between "real" units and pixels, don't we
-// and then D needs to be expressed in meters
+const D = 1; // Meters between grid points
 const PIXELS_PER_METER = 1 / 2;
 const TICK_MS = 10;
 
-const { Graphics, Text, TextStyle } = PIXI;
+const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
+    - Get the cool fonts back (Major Mono Display)
     - Get the grid back
         - Display all visible grid coordinates
+    - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
     - Minimap
     - Observe other entities delayed by distance
         - Detached / remote viewing
@@ -236,10 +236,10 @@ class PhysicalObject {
     });
     return forces.times(1 / this.mass);
   }
-  resetObject() {
-    this.object = this.pixiObject();
+  resetPixiObject() {
+    this.pixiObject = this.createPixiObject();
   }
-  pixiObject() {
+  createPixiObject() {
     return new Graphics();
   }
   update(properDT) {
@@ -267,8 +267,8 @@ class PhysicalObject {
       ).timesVector(this.direction);
     }
     // Update PIXI object
-    this.object.position.set(this.position.x, this.position.y);
-    this.object.rotation = Math.atan2(this.direction.y, this.direction.x);
+    this.pixiObject.position.set(this.position.x, this.position.y);
+    this.pixiObject.rotation = Math.atan2(this.direction.y, this.direction.x);
   }
 }
 
@@ -282,7 +282,7 @@ class Ship extends PhysicalObject {
   properForces() {
     return [this.direction.times(this.thrust), ...super.properForces()];
   }
-  pixiObject() {
+  createPixiObject() {
     var graphics = new Graphics();
     graphics.beginFill(this.color);
     let radius = this.size / 2;
@@ -296,15 +296,59 @@ class Ship extends PhysicalObject {
   }
 }
 
-class ReferenceFrame extends PIXI.Container {
-  constructor(velocity = new Vector()) {
+class ReferenceFrame extends Container {
+  // A set of objects which are all locked at traveling at the same velocity and all
+  // have the same proper time (not true once we add general relativity)
+  // This is _somewhat_ of a physical analog, although in physics different points in
+  // spacetime wouldn't share a reference frame.
+  // It's mostly a great optimization that allows us to only compute transformations once
+  // per group of objects with locked velocities.
+  constructor(velocity = new Vector(), objects = []) {
     super();
-    this.objects = new PIXI.Container();
-    super.addChild(this.objects);
+    this.objects = [];
+    this.objectContainer = new Container();
+    super.addChild(this.objectContainer);
     this.velocity = velocity;
+    objects.forEach(this.addChild.bind(this));
   }
   addChild(object) {
-    this.objects.addChild(object);
+    // PhysicalObject, not PIXI.DrawableObject
+    // TODO: onChange that updates the object container when object.object changes
+    object.resetPixiObject();
+    this.objects.push(object);
+    this.objectContainer.addChild(object.pixiObject);
+  }
+  update(observerDT, observerFrame, observerPosition) {
+    // This is complex and hard to get right.
+    // - We have a player with a rest reference frame.
+    //   - The player is always at the center of their reference frame.
+    // - We need objects to appear transformed with a lorentz transform relative
+    //     to the origin of the player's reference frame.
+    // - PIXI has a pivot, which changes the origin of rotation, but not scaling / skew
+    // - So to get the right transformation at the right origin, we
+    //   - have a reference frame (PIXI container) whose origin is the player's position
+    //   - apply the transformation in that container
+    //   - have a second container inside it whose coordinates are relative to the player's position
+    let relativeVelocity = this.velocity
+      .times(-1)
+      .relativisticPlus(observerFrame.velocity);
+    let gamma = relativeVelocity.gamma();
+    let properDT = observerDT * gamma;
+
+    // Update frame objects
+    this.objects.forEach((o) => o.update(properDT));
+
+    // Offset frame to the observer
+    this.objectContainer.position.set(-observerPosition.x, -observerPosition.y);
+
+    // Update the lorentz contraction transform
+    let transform = Matrix2D.fromEigenvectors(
+      relativeVelocity,
+      1 / gamma,
+      relativeVelocity.orthogonal(),
+      1
+    );
+    this.transform.setFromMatrix(transform.toPixiMatrix());
   }
 }
 
@@ -312,15 +356,15 @@ class Player {
   constructor(object) {
     // object is a PhysicalObject, not a PIXI.DrawableObject;
     // we might need a rename to make this separation more clear
-    this.referenceFrame = new ReferenceFrame();
-    object.resetObject();
     this.object = object;
-    this.referenceFrame.addChild(object.object);
+    this.referenceFrame = new ReferenceFrame(object.velocity, [object]);
   }
   update(properDT) {
+    // The player's object is always at the origin in its own reference frame.
+    // The player's reference frame may move relative to the game world.
     this.object.update(properDT);
     this.referenceFrame.velocity = this.object.velocity;
-    this.object.object.position.set(0, 0);
+    this.object.pixiObject.position.set(0, 0);
     this.referenceFrame.position.set(
       this.object.position.x,
       this.object.position.y
@@ -335,7 +379,7 @@ class Station extends PhysicalObject {
     super.update(properDT);
     this.text.text = `Clock: ${this.t.toFixed(3)}`;
   }
-  pixiObject() {
+  createPixiObject() {
     var graphics = new Graphics();
     graphics.beginFill(this.color);
     let radius = this.size / 2;
@@ -364,46 +408,49 @@ class ReactiveText {
     this.pixiObject = new Text("", new TextStyle({ ...style }));
   }
   update() {
+    // TODO: this currently updates every frame, it should be able to be marked as dirty or something
     this.pixiObject.text = this.updateText();
   }
 }
 
+const WORLD_DATA = [
+  new ReferenceFrame(new Vector(0, 0), [
+    new Station(new Vector(-20000, 0)),
+    new Station(new Vector(500, 500)),
+    new Station(new Vector(20000, 0)),
+  ]),
+];
+
 class Game {
   constructor(app) {
     this.app = app;
-    this.gameLayer = new PIXI.Container();
-    this.gameLayer.transform.setFromMatrix(
+    this.worldLayer = new Container();
+    this.worldLayer.transform.setFromMatrix(
       new PIXI.Matrix()
         .scale(PIXELS_PER_METER, PIXELS_PER_METER)
         .translate(app.screen.width / 2, app.screen.height / 2)
     );
 
-    // Because of JS weirdness we can't do this in the constructor, so
-    // this is basically the canonical construction for now
     this.player = new Player(new Ship(new Vector(), new Vector(0.01, 0.03)));
-    this.gameLayer.addChild(this.player.referenceFrame);
+    this.worldLayer.addChild(this.player.referenceFrame);
 
-    this.stations = [
-      new Station(new Vector(-20000, 0)),
-      new Station(new Vector(500, 500)),
-      new Station(new Vector(20000, 0)),
-    ];
-    this.coordinateFrame = new ReferenceFrame();
-    this.stations.forEach((station) => {
-      station.resetObject();
-      this.coordinateFrame.addChild(station.object);
+    this.referenceFrames = [];
+    WORLD_DATA.forEach((frame) => {
+      this.referenceFrames.push(frame);
+      // The universe is always relative to the player's reference frame.
+      // Add at 0 to draw under the player
+      this.player.referenceFrame.addChildAt(frame, 0);
     });
-    // The universe is always relative to the player's reference frame.
-    // Add at 0 to draw under the player
-    this.player.referenceFrame.addChildAt(this.coordinateFrame, 0);
-    this.thrust_delta = 8;
+
+    this.thrust_delta = 15;
     this.debug = true;
-    this.stuff = [];
-    app.stage.addChild(this.gameLayer);
-    app.stage.addChild(this.debugInfo(app));
+    this._debugInfo = [];
+    app.stage.addChild(this.worldLayer);
+    app.stage.addChild(this.debugInfo());
   }
-  debugInfo = (app) => {
-    let container = new PIXI.Container();
+
+  debugInfo() {
+    let container = new Container();
     // ctx.font = "10px Major Mono Display";
     // ctx.fillStyle = "white";
     [
@@ -420,52 +467,26 @@ class Game {
         fill: 0xffffff,
         fontSize: 15,
       });
-      this.stuff.push(text);
-      console.log(app.screen);
+      this._debugInfo.push(text);
       text.pixiObject.position.set(10, (i + 1) * 20);
       container.addChild(text.pixiObject);
     });
     return container;
-  };
+  }
+
   updateState = (dt) => {
     // dt is proper time for the player
     this.player.update(dt);
-    this.stuff.forEach((o) => o.update(dt));
-    // time contraction for other objects
+    this._debugInfo.forEach((o) => o.update(dt));
     // we still need to implement the doppler effect / "fog of war", ie. you should observe other objects as they were
     // relative to your distance and the speed of light. It might make sense for every object to maintain a state history
     // that can be sampled, and then we can garbage collect this history when no observers exist that could observe older state
-    this.stations.forEach((station) =>
-      station.update(
-        dt * station.velocity.minus(this.player.referenceFrame.velocity).gamma()
-      )
-    );
-    // TODO: move most of this logic into ReferenceFrame.
-    // TODO: ReferenceFrames should not be able to be decoupled, eg. there's a strong assumption
-    //       that every object in a reference frame will always have relative velocity 0.
-    let coordVelocity = this.player.referenceFrame.velocity;
-    let transform = Matrix2D.fromEigenvectors(
-      coordVelocity,
-      1 / coordVelocity.gamma(),
-      coordVelocity.orthogonal(),
-      1
-    );
-    // This is complex and hard to get right.
-    // - We have a player with a rest reference frame.
-    //   - The player is always at the center of their reference frame.
-    // - We need objects to appear transformed with a lorentz transform relative
-    //     to the origin of the player's reference frame.
-    // - PIXI has a pivot, which changes the origin of rotation, but not scaling / skew
-    // - So to get the right transformation at the right origin, we
-    //   - have a reference frame (PIXI container) whose origin is the player's position
-    //   - apply the transformation in that container
-    //   - have a second container inside it whose coordinates are relative to the player's position
-    this.coordinateFrame.objects.position.set(
-      -this.player.object.position.x,
-      -this.player.object.position.y
-    );
-    this.coordinateFrame.transform.setFromMatrix(transform.toPixiMatrix());
-    this.gameLayer.pivot.set(
+    this.referenceFrames.forEach((frame) => {
+      frame.update(dt, this.player.referenceFrame, this.player.object.position);
+    });
+
+    // The world layer focuses on the player in the player's reference frame
+    this.worldLayer.pivot.set(
       this.player.object.position.x,
       this.player.object.position.y
     );
@@ -473,10 +494,9 @@ class Game {
   tick = (ctx, dt) => {
     let t = new Date().getTime();
     this.updateState(dt);
-    // this.draw(ctx);
     let updateTime = new Date().getTime() - t;
     let nextTick = TICK_MS - updateTime;
-    let nextDT = 1 / TICK_MS;
+    let nextDT = TICK_MS / 1000;
     window.setTimeout(() => this.tick(ctx, nextDT), nextTick);
   };
   run = (ctx) => {
@@ -516,15 +536,7 @@ class Game {
     }
   };
   handleKeyPress = ({ key, code }) => {
-    switch (
-      code
-      //   case "KeyA":
-      //       this.player.object.angularVelocity = -0.03;
-      //     break;
-      //   case "KeyD":
-      //       this.player.object.angularVelocity = 0.03;
-      //     break;
-    ) {
+    switch (code) {
     }
   };
 }
