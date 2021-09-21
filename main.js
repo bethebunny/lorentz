@@ -286,10 +286,10 @@ class Ship extends PhysicalObject {
     var graphics = new Graphics();
     graphics.beginFill(this.color);
     let radius = this.size / 2;
+    graphics.lineStyle(3, 0x000000);
     graphics.drawCircle(0, 0, radius);
     graphics.endFill();
 
-    graphics.lineStyle(3, 0xff0000);
     graphics.moveTo(0, 0);
     graphics.lineTo(radius, 0);
     return graphics;
@@ -383,10 +383,10 @@ class Station extends PhysicalObject {
     var graphics = new Graphics();
     graphics.beginFill(this.color);
     let radius = this.size / 2;
+    graphics.lineStyle(3, 0x000000);
     graphics.drawCircle(0, 0, radius);
     graphics.endFill();
 
-    graphics.lineStyle(3, 0xff0000);
     graphics.moveTo(0, 0);
     graphics.lineTo(radius, 0);
 
@@ -394,7 +394,7 @@ class Station extends PhysicalObject {
     // Better option is to use BitmapText, we'll cross that bridge later
     let text = new Text(
       "",
-      new TextStyle({ align: "center", fill: 0x00ff00, fontSize: 30 })
+      new TextStyle({ align: "center", fill: 0x00aa33, fontSize: 30 })
     );
     this.text = text;
     graphics.addChild(text);
@@ -511,10 +511,10 @@ class Game {
         this.player.object.thrust = -this.thrust_delta;
         break;
       case "KeyA":
-        this.player.object.angularVelocity = -0.3;
+        this.player.object.angularVelocity = -3;
         break;
       case "KeyD":
-        this.player.object.angularVelocity = 0.3;
+        this.player.object.angularVelocity = 3;
         break;
     }
   };
@@ -544,7 +544,12 @@ class Game {
 var main = () => {
   let width = window.innerWidth,
     height = window.innerHeight;
-  let app = new PIXI.Application({ width, height, backgroundColor: 0x191919 });
+  let app = new PIXI.Application({
+    width,
+    height,
+    backgroundColor: 0x191919,
+    antialias: true,
+  });
   document.body.appendChild(app.view);
 
   let game = new Game(app);
