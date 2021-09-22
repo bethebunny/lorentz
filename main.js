@@ -4,13 +4,11 @@ const C = 50; // Speed of light in meters per second
 const C2 = C * C;
 const D = 1; // Meters between grid points
 const PIXELS_PER_METER = 1;
-// const TICK_MS = 10;
 
 const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
-    - Get the grid back
-        - Display all visible grid coordinates
+    - Display all visible grid coordinates
     - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
     - Minimap
     - Observe other entities delayed by distance
@@ -151,65 +149,38 @@ class Vector {
   }
 }
 
-// let visibleGridPoints = function* (center) {
-//   let { x, y } = this.corner(center);
-//   for (let i = x - posMod(x, D); i < x + this.width; i += D) {
-//     for (let j = y - posMod(y, D); j < y + this.height; j += D) {
-//       yield new Vector(i, j);
-//     }
-//   }
-// };
-
-// function drawGrid(ctx, center, color = "white") {
-//   for (let gridPoint of this.visibleGridPoints(center)) {
-//     let { x, y } = this.pixelCoordinates(gridPoint, center);
-//     drawPoint(ctx, x, y, color, 3);
-//   }
-// }
-
-// function drawContractedGrid(ctx, center, velocity) {
-//   let gamma = velocity.gamma();
-//   for (let gridPoint of this.visibleGridPoints(center)) {
-//     let observed = observedPoint(center, gridPoint, velocity, gamma);
-//     let { x, y } = this.pixelCoordinates(observed, center);
-//     drawPoint(ctx, x, y, "green", 3);
-//   }
-// }
-
-// let drawBackground = (ctx, width, height) => {
-//   ctx.fillStyle = "#222222";
-//   ctx.fillRect(0, 0, width, height);
-// };
-
-let drawPoint = (ctx, x, y, color = null, strokeWidth = 1) => {
-  let fillStyle = ctx.fillStyle;
-  if (color !== null) {
-    ctx.fillStyle = color;
-  }
-  ctx.fillRect(
-    x - strokeWidth / 2,
-    y - strokeWidth / 2,
-    strokeWidth,
-    strokeWidth
-  );
-  ctx.fillStyle = fillStyle;
-};
-
-let posMod = (x, m) => ((x % m) + m) % m;
-
-let gridPoints = function* (x, y, w, h, d) {
-  for (i = x - posMod(x, d); i < x + w; i += d) {
-    for (j = y - posMod(y, d); j < y + h; j += d) {
-      yield new Vector(i, j);
+// TODO: we want `step` to vary in x and y so we can have a separate scale / color
+// Useful since length contraction only happens along the axis of travel
+class Grid extends Graphics {
+  constructor({ x: xmin, y: ymin }, { x: xmax, y: ymax }, step, color) {
+    super();
+    this.step = step;
+    this.color = color;
+    this.beginFill(color);
+    let radius = 2;
+    for (let x = xmin; x <= xmax; x += step) {
+      for (let y = ymin; y <= ymax; y += step) {
+        this.drawCircle(x, y, radius);
+      }
     }
+    // For grid lines instead
+    // this.lineStyle(0.5, color);
+    // for (let x = xmin; x <= xmax; x += step) {
+    //   this.moveTo(x, ymin);
+    //   this.lineTo(x, ymax);
+    // }
+    // for (let y = ymin; y <= ymax; y += step) {
+    //   this.moveTo(xmin, y);
+    //   this.lineTo(xmax, y);
+    // }
   }
-};
-
-let drawGrid = (ctx, corner, width, height, d) => {
-  for (let { x, y } of gridPoints(corner.x, corner.y, width, height, d)) {
-    drawPoint(ctx, x, y, (color = "white"));
+  set position({ x, y }) {
+    return super.position.set(posMod(x, this.step), posMod(y, this.step));
   }
-};
+  get position() {
+    return super.position;
+  }
+}
 
 class PhysicalObject {
   MASS = 1;
@@ -411,6 +382,8 @@ class Station extends PhysicalObject {
   }
 }
 
+let posMod = (x, n) => ((x % n) + n) % n;
+
 class ReactiveText {
   constructor(updateText, style = {}) {
     this.updateText = updateText;
@@ -450,6 +423,21 @@ class Game {
       // Add at 0 to draw under the player
       this.player.referenceFrame.addChildAt(frame, 0);
     });
+    this._playerGrid = new Grid(
+      new Vector(-1000, -1000),
+      new Vector(1000, 1000),
+      100,
+      0x555555
+    );
+    this._coordinateGrid = new Grid(
+      new Vector(-1000, -1000),
+      new Vector(1000, 1000),
+      100,
+      0x448844
+    );
+    this.player.referenceFrame.addChildAt(this._playerGrid, 0);
+    // this.referenceFrames[0] is coordinate frame for now :P
+    this.referenceFrames[0].addChildAt(this._coordinateGrid, 0);
     this.last_update_time = new Date().getTime();
 
     this.thrust_delta = 7.5;
@@ -495,6 +483,9 @@ class Game {
     this.referenceFrames.forEach((frame) => {
       frame.update(dt, this.player.referenceFrame, this.player.object.position);
     });
+
+    this._playerGrid.position = this.player.object.position.times(-1);
+    this._coordinateGrid.position = this.player.object.position.times(-1);
 
     // The world layer focuses on the player in the player's reference frame
     this.worldLayer.pivot.set(
