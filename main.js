@@ -9,7 +9,6 @@ const TICK_MS = 10;
 const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
-    - Get the cool fonts back (Major Mono Display)
     - Get the grid back
         - Display all visible grid coordinates
     - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
@@ -394,7 +393,12 @@ class Station extends PhysicalObject {
     // Better option is to use BitmapText, we'll cross that bridge later
     let text = new Text(
       "",
-      new TextStyle({ align: "center", fill: 0x00aa33, fontSize: 30 })
+      new TextStyle({
+        fontStyle: "bold",
+        align: "center",
+        fill: 0x00aa33,
+        fontSize: 30,
+      })
     );
     this.text = text;
     graphics.addChild(text);
@@ -441,6 +445,7 @@ class Game {
       // Add at 0 to draw under the player
       this.player.referenceFrame.addChildAt(frame, 0);
     });
+    this.last_update_time = new Date().getTime();
 
     this.thrust_delta = 15;
     this.debug = true;
@@ -464,6 +469,7 @@ class Game {
       () => `Time: ${this.player.object.t.toFixed(3)}`,
     ].forEach((updateText, i) => {
       let text = new ReactiveText(updateText, {
+        fontFamily: "Major Mono Display",
         fill: 0xffffff,
         fontSize: 15,
       });
@@ -491,16 +497,10 @@ class Game {
       this.player.object.position.y
     );
   };
-  tick = (ctx, dt) => {
+  tick = () => {
     let t = new Date().getTime();
-    this.updateState(dt);
-    let updateTime = new Date().getTime() - t;
-    let nextTick = TICK_MS - updateTime;
-    let nextDT = TICK_MS / 1000;
-    window.setTimeout(() => this.tick(ctx, nextDT), nextTick);
-  };
-  run = (ctx) => {
-    this.tick(ctx, 0);
+    this.updateState((t - this.last_update_time) / 1000);
+    this.last_update_time = t;
   };
   handleKeyDown = ({ code }) => {
     switch (code) {
@@ -541,7 +541,16 @@ class Game {
   };
 }
 
-var main = () => {
+let setup = () => {
+  return new Promise((resolve) =>
+    WebFont.load({
+      google: { families: ["Major Mono Display"] },
+      active: resolve,
+    })
+  );
+};
+
+let main = () => {
   let width = window.innerWidth,
     height = window.innerHeight;
   let app = new PIXI.Application({
@@ -553,12 +562,11 @@ var main = () => {
   document.body.appendChild(app.view);
 
   let game = new Game(app);
-  // Not using app.ticker because it turns time into some frame time that I don't care about per se
-  // it may make sense to translate at some point to get a smoother gameplay experience ie. more ticks/s
-  game.run();
+  // Can also just use setTimeout but using app.ticker in case that's better for frame something something
+  app.ticker.add(game.tick);
   document.addEventListener("keypress", game.handleKeyPress);
   document.addEventListener("keydown", game.handleKeyDown);
   document.addEventListener("keyup", game.handleKeyUp);
 };
 
-document.addEventListener("DOMContentLoaded", main);
+document.addEventListener("DOMContentLoaded", () => setup().then(main));
