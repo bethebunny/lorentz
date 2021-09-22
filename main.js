@@ -9,10 +9,11 @@ const MINIMAP_SCALE = 1 / 50;
 const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
-    - Display all visible grid coordinates
-    - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
     - Observe other entities delayed by distance
-        - Detached / remote viewing
+    - Display all visible grid coordinates
+        - Regardless of viewpoint
+    - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
+    - Simplify minimap / viewport abstractions
     - Fuel / different engines
     - Inventory
     - Triangular ship
@@ -144,6 +145,17 @@ class Vector {
   gamma() {
     let v = this.magnitude();
     return Math.pow(1 - (v * v) / C2, -0.5);
+  }
+  lorentzTransform() {
+    return Matrix2D.fromEigenvectors(
+      this,
+      1 / this.gamma(),
+      this.orthogonal(),
+      1
+    );
+  }
+  inverseLorentzTransform() {
+    return Matrix2D.fromEigenvectors(this, this.gamma(), this.orthogonal(), 1);
   }
   toString() {
     return `V{${this.x.toFixed(5)}, ${this.y.toFixed(5)}}`;
@@ -413,13 +425,9 @@ class ReferenceFrame extends Container {
     );
 
     // Update the lorentz contraction transform
-    let transform = Matrix2D.fromEigenvectors(
-      relativeVelocity,
-      1 / gamma,
-      relativeVelocity.orthogonal(),
-      1
+    this.transform.setFromMatrix(
+      relativeVelocity.lorentzTransform().toPixiMatrix()
     );
-    this.transform.setFromMatrix(transform.toPixiMatrix());
   }
 }
 
@@ -499,7 +507,7 @@ class Game {
     app.stage.addChild(this.hud);
 
     this.player = new Player(
-      new Ship(new Vector(0, 0), new Vector(0.01, 0.03))
+      new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
     );
     this.worldLayer.addChild(this.player.referenceFrame);
     this.minimap.objects.addChild(
@@ -508,7 +516,7 @@ class Game {
 
     this.viewportPosition = this.player.object.position;
     // TODO: this doesn't quite work yet :D
-    this.followingPlayer = true;
+    this.followingPlayer = false;
 
     this.referenceFrames = [];
     WORLD_DATA.forEach((frame) => {
@@ -553,12 +561,7 @@ class Game {
       lr = new Vector(x + width, y - height);
     let ul = new Vector(x - width, y + height),
       ur = new Vector(x + width, y + height);
-    let transform = Matrix2D.fromEigenvectors(
-      velocity,
-      velocity.gamma(),
-      velocity.orthogonal(),
-      1
-    );
+    let transform = velocity.inverseLorentzTransform();
     let tll = transform.timesVector(ll),
       tlr = transform.timesVector(lr),
       tul = transform.timesVector(ul),
@@ -607,6 +610,38 @@ class Game {
       minimap_width / 10,
       this.app.screen.height - minimap_height - minimap_width / 10
     );
+
+    let self = this;
+    var dragging_minimap = false;
+    let minimapDragMove = (event) => {
+      if (dragging_minimap) {
+        console.log(event);
+        let { x, y } = event.data.getLocalPosition(self.minimap);
+        console.log(x, y);
+        this.viewportPosition = new Vector(
+          x - minimap_width / 2,
+          y - minimap_height / 2
+        )
+          .times(1 / MINIMAP_SCALE)
+          .plus(this.player.object.position);
+      }
+    };
+    let minimapStartDrag = (event) => {
+      dragging_minimap = true;
+      self.followingPlayer = false;
+      minimapDragMove(event);
+    };
+    let minimapEndDrag = (event) => {
+      dragging_minimap = false;
+    };
+    this.minimap.interactive = true;
+    // this.minimap.hitArea = this.minimap;
+    this.minimap
+      .on("pointerdown", minimapStartDrag)
+      .on("pointerup", minimapEndDrag)
+      .on("pointerout", minimapEndDrag)
+      .on("pointermove", minimapDragMove);
+
     this.hud.addChild(this.minimap);
   }
 
@@ -627,10 +662,14 @@ class Game {
 
     // The world layer focuses on the player in the player's reference frame
     if (this.followingPlayer) this.viewportPosition = position;
-    this.worldLayer.pivot.set(this.viewportPosition.x, this.viewportPosition.y);
-    this.updateMinimapViewport(velocity, this.viewportPosition.minus(position));
-    this._playerGrid.position = this.viewportPosition.times(-1);
-    this._coordinateGrid.position = this.viewportPosition.times(-1);
+    let contractedViewpoint = velocity
+      .lorentzTransform()
+      .timesVector(this.viewportPosition.minus(position))
+      .plus(position);
+    this.worldLayer.pivot.set(contractedViewpoint.x, contractedViewpoint.y);
+    this.updateMinimapViewport(velocity, contractedViewpoint.minus(position));
+    this._playerGrid.position = contractedViewpoint.times(-1);
+    this._coordinateGrid.position = contractedViewpoint.times(-1);
   };
   tick = () => {
     let t = new Date().getTime();
@@ -650,6 +689,9 @@ class Game {
         break;
       case "KeyD":
         this.player.object.angularVelocity = 3;
+        break;
+      case "Space":
+        this.followingPlayer = true;
         break;
     }
   };
