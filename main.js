@@ -1,10 +1,10 @@
 //import { PIXI } from "https://pixijs.download/release/pixi.js";
 
-const C = 100; // Speed of light in meters per second
+const C = 50; // Speed of light in meters per second
 const C2 = C * C;
 const D = 1; // Meters between grid points
-const PIXELS_PER_METER = 1 / 2;
-const TICK_MS = 10;
+const PIXELS_PER_METER = 1;
+// const TICK_MS = 10;
 
 const { Container, Graphics, Text, TextStyle } = PIXI;
 
@@ -15,11 +15,15 @@ const { Container, Graphics, Text, TextStyle } = PIXI;
     - Minimap
     - Observe other entities delayed by distance
         - Detached / remote viewing
+    - Fuel / different engines
+    - Inventory
     - Triangular ship
+    - Particles for thrust
     - Speed up animations based on time dilation
     - Have Wigner rotation rotate the world rather than the player
     - Thomas precession
         - I think this is actually done    
+    - Relativity for rotation
     - Collisions?
     - Have the ship always point upwards and rotate space instead?
         - Render a compass
@@ -272,7 +276,7 @@ class PhysicalObject {
 }
 
 class Ship extends PhysicalObject {
-  size = 100;
+  size = 50;
   color = 0xffffff;
   constructor(position, velocity = new Vector(), direction = new Vector(1, 0)) {
     super(position, (velocity = velocity), (direction = direction));
@@ -372,7 +376,7 @@ class Player {
 }
 
 class Station extends PhysicalObject {
-  size = 360;
+  size = 180;
   color = 0xffffff;
   update(properDT) {
     super.update(properDT);
@@ -397,9 +401,10 @@ class Station extends PhysicalObject {
         fontStyle: "bold",
         align: "center",
         fill: 0x00aa33,
-        fontSize: 30,
+        fontSize: 15,
       })
     );
+    text.position.set(-35, 20);
     this.text = text;
     graphics.addChild(text);
     return graphics;
@@ -419,9 +424,9 @@ class ReactiveText {
 
 const WORLD_DATA = [
   new ReferenceFrame(new Vector(0, 0), [
-    new Station(new Vector(-20000, 0)),
-    new Station(new Vector(500, 500)),
-    new Station(new Vector(20000, 0)),
+    new Station(new Vector(-4000, 0)),
+    new Station(new Vector(250, 250)),
+    new Station(new Vector(4000, 0)),
   ]),
 ];
 
@@ -447,8 +452,7 @@ class Game {
     });
     this.last_update_time = new Date().getTime();
 
-    this.thrust_delta = 15;
-    this.debug = true;
+    this.thrust_delta = 7.5;
     this._debugInfo = [];
     app.stage.addChild(this.worldLayer);
     app.stage.addChild(this.debugInfo());
@@ -464,6 +468,7 @@ class Game {
         `Beta: ${(this.player.referenceFrame.velocity.magnitude() / C).toFixed(
           5
         )}c`,
+      () => `Gamma: ${this.player.referenceFrame.velocity.gamma().toFixed(5)}`,
       () => `Velocity direction: ${this.player.referenceFrame.velocity.unit()}`,
       () => `Acceleration: ${this.player.object.properAcceleration()}`,
       () => `Time: ${this.player.object.t.toFixed(3)}`,
