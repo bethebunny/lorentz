@@ -9,7 +9,6 @@ const MINIMAP_SCALE = 1 / 50;
 const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
-    - Observe other entities delayed by distance
     - Display all visible grid coordinates
         - Regardless of viewpoint
     - Simplify or eliminate the duality between PhysicalObject and PIXI.DisplayObject.
@@ -76,15 +75,6 @@ let rotationMatrix = (theta) =>
     Math.sin(theta),
     Math.cos(theta)
   );
-
-let observedPoint = (reference, observing, velocity, gamma) => {
-  // TODO: figure out the transformation matrix for this all :P
-  // whoops, and we actually need the inverse transformation of this xD
-  let dp = observing.minus(reference);
-  let orth = dp.project(velocity.orthogonal());
-  let coll = dp.project(velocity);
-  return orth.plus(coll.times(1 / gamma)).plus(reference);
-};
 
 class Vector {
   constructor(x = 0, y = 0) {
@@ -204,7 +194,8 @@ class PhysicalObject {
     mass = this.MASS
   ) {
     // TODO We're not creating all objects at the beginning of the game :P They should start
-    // with the time of the object that created them probably
+    // with the time of the object that created them. Objects at the beginning of the game
+    // should start with negative t based on distance to the player.
     this.t = 0;
     this.mass = mass;
     this.position = position;
@@ -229,6 +220,7 @@ class PhysicalObject {
       this._referenceFrame.removeChild(this);
     }
     this._referenceFrame = frame;
+    this.resetPixiObjects();
   }
   get referenceFrame() {
     return this._referenceFrame;
@@ -255,10 +247,6 @@ class PhysicalObject {
   update(properDT) {
     this.t += properDT;
     let { position, velocity, direction } = this;
-    // Right now length contraction is basically computed here; we update the player's position in the coordinate frame
-    // as v * dt * gamma, which can either be interpreted as length contraction (from the perspective of the ship)
-    // or time dilation (from the perspective of the coordinate frame's clock)
-    this.position = position.plus(velocity.times(properDT * velocity.gamma()));
     let acceleration = this.properAcceleration();
     if (acceleration.x != 0 || acceleration.y != 0) {
       let boost = acceleration.times(properDT);
@@ -276,6 +264,10 @@ class PhysicalObject {
         properDT * this.angularVelocity
       ).timesVector(this.direction);
     }
+    // Right now length contraction is basically computed here; we update the player's position in the coordinate frame
+    // as v * dt * gamma, which can either be interpreted as length contraction (from the perspective of the ship)
+    // or time dilation (from the perspective of the coordinate frame's clock)
+    this.position = position.plus(velocity.times(properDT * velocity.gamma()));
     // Update PIXI object
     this.pixiObject.position.set(this.position.x, this.position.y);
     this.pixiObject.rotation = Math.atan2(this.direction.y, this.direction.x);
@@ -390,14 +382,13 @@ class ReferenceFrame extends Container {
     // PhysicalObject, not PIXI.DrawableObject
     this.objects.add(object);
     object.referenceFrame = this;
-    object.resetPixiObjects();
   }
   removeChild(object) {
     this.objects.remove(object);
     this.objectContainer.remove(object.pixiObject);
     this.minimapObjectContainer.remove(object.minimapObject);
   }
-  update(observerDT, observerFrame, observerPosition) {
+  update(observerDT, observerFrame, observerPosition, oldObserverPosition) {
     // This is complex and hard to get right.
     // - We have a player with a rest reference frame.
     //   - The player is always at the center of their reference frame.
@@ -408,6 +399,8 @@ class ReferenceFrame extends Container {
     //   - have a reference frame (PIXI container) whose origin is the player's position
     //   - apply the transformation in that container
     //   - have a second container inside it whose coordinates are relative to the player's position
+    //      - the objects themselves have position in world coordinates
+    //      - the container then has position of the inverse of player position
     let relativeVelocity = this.velocity
       .times(-1)
       .relativisticPlus(observerFrame.velocity);
@@ -415,9 +408,14 @@ class ReferenceFrame extends Container {
     let properDT = observerDT * gamma;
 
     // Update frame objects
-    this.objects.forEach((o) => o.update(properDT));
+    this.objects.forEach((o) => {
+      let oldDistance = o.position.minus(oldObserverPosition).magnitude();
+      let newDistance = o.position.minus(observerPosition).magnitude();
+      let dopplerDT = (oldDistance - newDistance) / C;
+      o.update(properDT + dopplerDT);
+    });
 
-    // Offset frame to the observer
+    // Offset frame object container relative to the observer
     this.objectContainer.position.set(-observerPosition.x, -observerPosition.y);
     this.minimapObjectContainer.position.set(
       -observerPosition.x,
@@ -434,7 +432,6 @@ class ReferenceFrame extends Container {
 class Player {
   constructor(object) {
     // object is a PhysicalObject, not a PIXI.DrawableObject;
-    // we might need a rename to make this separation more clear
     this.object = object;
     this.referenceFrame = new ReferenceFrame(object.velocity, [object]);
   }
@@ -515,8 +512,7 @@ class Game {
     );
 
     this.viewportPosition = this.player.object.position;
-    // TODO: this doesn't quite work yet :D
-    this.followingPlayer = false;
+    this.followingPlayer = true;
 
     this.referenceFrames = [];
     WORLD_DATA.forEach((frame) => {
@@ -647,25 +643,28 @@ class Game {
 
   updateState = (dt) => {
     // dt is proper time for the player
+    let oldPosition = this.player.object.position;
     this.player.update(dt);
 
     let { position, velocity } = this.player.object;
     let { x, y } = position;
 
     this._debugInfo.forEach((o) => o.update(dt));
-    // we still need to implement the doppler effect / "fog of war", ie. you should observe other objects as they were
-    // relative to your distance and the speed of light. It might make sense for every object to maintain a state history
-    // that can be sampled, and then we can garbage collect this history when no observers exist that could observe older state
+
+    // We use the old position to compute doppler effects and observational delay
+    // The simulator only computes new state as needed eg. as observed by the player
+    // given distance to observed objects and C.
     this.referenceFrames.forEach((frame) => {
-      frame.update(dt, this.player.referenceFrame, position);
+      frame.update(dt, this.player.referenceFrame, position, oldPosition);
     });
 
-    // The world layer focuses on the player in the player's reference frame
     if (this.followingPlayer) this.viewportPosition = position;
     let contractedViewpoint = velocity
       .lorentzTransform()
       .timesVector(this.viewportPosition.minus(position))
       .plus(position);
+
+    // Update UI with the new player position and viewpoint
     this.worldLayer.pivot.set(contractedViewpoint.x, contractedViewpoint.y);
     this.updateMinimapViewport(velocity, contractedViewpoint.minus(position));
     this._playerGrid.position = contractedViewpoint.times(-1);
