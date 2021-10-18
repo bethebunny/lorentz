@@ -1,12 +1,12 @@
-//import { PIXI } from "https://pixijs.download/release/pixi.js";
+import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import * as PIXI from "pixi.js";
+import WebFont from "webfontloader";
 
 const C = 50; // Speed of light in meters per second
 const C2 = C * C;
 const D = 1; // Meters between grid points
 const PIXELS_PER_METER = 1;
 const MINIMAP_SCALE = 1 / 50;
-
-const { Container, Graphics, Text, TextStyle } = PIXI;
 
 /* TODO:
     - Display all visible grid coordinates
@@ -36,39 +36,34 @@ const { Container, Graphics, Text, TextStyle } = PIXI;
 */
 
 class Matrix2D {
-  constructor(a, b, c, d) {
-    this.a = a;
-    this.b = b;
-    this.c = c;
-    this.d = d;
-  }
-  timesScalar = (s) =>
+  constructor(public a: number, public b: number, public c: number, public d: number) { }
+  timesScalar = (s: number): Matrix2D =>
     new Matrix2D(this.a * s, this.b * s, this.c * s, this.d * s);
-  timesVector = ({ x, y }) =>
+  timesVector = ({ x, y }: Vector): Vector =>
     new Vector(this.a * x + this.b * y, this.c * x + this.d * y);
-  timesMatrix = ({ a, b, c, d }) =>
+  timesMatrix = ({ a, b, c, d }: Matrix2D): Matrix2D =>
     new Matrix2D(
       this.a * a + this.b * c,
       this.a * b + this.b * d,
       this.c * a + this.d * c,
       this.c * b + this.d * d
     );
-  inverse() {
+  inverse(): Matrix2D {
     let { a, b, c, d } = this;
     let determinant = a * d - b * c;
     return new Matrix2D(d, -b, -c, a).timesScalar(1 / determinant);
   }
-  static fromEigenvectors(v1, e1, v2, e2) {
+  static fromEigenvectors(v1: Vector, e1: number, v2: Vector, e2: number): Matrix2D {
     let scale = new Matrix2D(e1, 0, 0, e2);
     let basis = new Matrix2D(v1.x, v2.x, v1.y, v2.y);
     return basis.timesMatrix(scale.timesMatrix(basis.inverse()));
   }
-  toPixiMatrix() {
+  toPixiMatrix(): PIXI.Matrix {
     return new PIXI.Matrix(this.a, this.c, this.b, this.d);
   }
 }
 
-let rotationMatrix = (theta) =>
+let rotationMatrix = (theta: number) =>
   new Matrix2D(
     Math.cos(theta),
     -Math.sin(theta),
@@ -77,11 +72,8 @@ let rotationMatrix = (theta) =>
   );
 
 class Vector {
-  constructor(x = 0, y = 0) {
-    this.x = x;
-    this.y = y;
-  }
-  relativisticPlus(other) {
+  constructor(readonly x = 0, readonly y = 0) { }
+  relativisticPlus(other: Vector): Vector {
     // https://en.wikipedia.org/wiki/Wigner_rotation#Two_general_boosts
     // Not associative or commutative, also results in a net rotation (thomasRotation)
     // I think there's something wrong here, close enough to C a boost perpendicular to the original speed
@@ -95,7 +87,7 @@ class Vector {
       .plus(v.times(1 / u_gamma))
       .times(1 / (1 + u_dot_v / C2));
   }
-  thomasRotationAngle(other) {
+  thomasRotationAngle(other: Vector): number {
     // https://en.wikipedia.org/wiki/Wigner_rotation#Finding_the_axis_and_angle_of_the_Thomas_rotation
     // Hmm what's the sign of the rotation here? I actually just don't know or have any intuitive sense.
     // It seems like it tracks with the article that the resulting angle is commutative in u + v vs v + u
@@ -116,27 +108,27 @@ class Vector {
       sign *
       Math.acos(
         Math.pow(1 + u_gamma + v_gamma + composite_gamma, 2) /
-          ((1 + u_gamma) * (1 + v_gamma) * (1 + composite_gamma)) -
-          1
+        ((1 + u_gamma) * (1 + v_gamma) * (1 + composite_gamma)) -
+        1
       )
     );
   }
-  plus = (other) => new Vector(this.x + other.x, this.y + other.y);
-  dot = (other) => this.x * other.x + this.y * other.y;
-  minus = (other) => new Vector(this.x - other.x, this.y - other.y);
-  times = (m) => new Vector(this.x * m, this.y * m);
-  magnitude = () => Math.sqrt(this.x * this.x + this.y * this.y);
-  unit = () => this.times(1 / this.magnitude());
-  orthogonal = () => new Vector(-this.y, this.x);
-  project(onto) {
+  plus = (other: Vector): Vector => new Vector(this.x + other.x, this.y + other.y);
+  dot = (other: Vector): number => this.x * other.x + this.y * other.y;
+  minus = (other: Vector): Vector => new Vector(this.x - other.x, this.y - other.y);
+  times = (m: number): Vector => new Vector(this.x * m, this.y * m);
+  magnitude = (): number => Math.sqrt(this.x * this.x + this.y * this.y);
+  unit = (): Vector => this.times(1 / this.magnitude());
+  orthogonal = (): Vector => new Vector(-this.y, this.x);
+  project(onto: Vector): Vector {
     let unit = onto.unit();
     return unit.times(this.dot(unit));
   }
-  gamma() {
+  gamma(): number {
     let v = this.magnitude();
     return Math.pow(1 - (v * v) / C2, -0.5);
   }
-  lorentzTransform() {
+  lorentzTransform(): Matrix2D {
     return Matrix2D.fromEigenvectors(
       this,
       1 / this.gamma(),
@@ -144,10 +136,10 @@ class Vector {
       1
     );
   }
-  inverseLorentzTransform() {
+  inverseLorentzTransform(): Matrix2D {
     return Matrix2D.fromEigenvectors(this, this.gamma(), this.orthogonal(), 1);
   }
-  toString() {
+  toString(): string {
     return `V{${this.x.toFixed(5)}, ${this.y.toFixed(5)}}`;
   }
 }
@@ -155,7 +147,7 @@ class Vector {
 // TODO: we want `step` to vary in x and y so we can have a separate scale / color
 // Useful since length contraction only happens along the axis of travel
 class Grid extends Graphics {
-  constructor({ x: xmin, y: ymin }, { x: xmax, y: ymax }, step, color) {
+  constructor({ x: xmin, y: ymin }: Vector, { x: xmax, y: ymax }: Vector, private step: number, private color: number) {
     super();
     this.step = step;
     this.color = color;
@@ -177,38 +169,34 @@ class Grid extends Graphics {
     //   this.lineTo(xmax, y);
     // }
   }
-  set position({ x, y }) {
-    return super.position.set(posMod(x, this.step), posMod(y, this.step));
-  }
-  get position() {
-    return super.position;
+  setPosition({ x, y }: Vector) {
+    this.position.set(posMod(x, this.step), posMod(y, this.step));
   }
 }
 
 class PhysicalObject {
-  MASS = 1;
+  static MASS = 1;
+
+  // TODO We're not creating all objects at the beginning of the game :P They should start
+  // with the time of the object that created them. Objects at the beginning of the game
+  // should start with negative t based on distance to the player.
+  public t: number = 0;
+  public angularVelocity: number = 0;
+  public externalForces: Array<Vector> = [];
+  private _referenceFrame: ReferenceFrame | null = null;
+  public pixiObject: PIXI.Graphics | null = null;
+  public minimapObject: PIXI.Graphics | null = null;
+
   constructor(
-    position,
-    velocity = new Vector(),
-    direction = new Vector(1, 0),
-    mass = this.MASS
-  ) {
-    // TODO We're not creating all objects at the beginning of the game :P They should start
-    // with the time of the object that created them. Objects at the beginning of the game
-    // should start with negative t based on distance to the player.
-    this.t = 0;
-    this.mass = mass;
-    this.position = position;
-    this.velocity = velocity;
-    this.angularVelocity = 0;
-    this.direction = direction;
-    this.externalForces = [];
-    this._referenceFrame = null;
-  }
-  properForces() {
+    public position: Vector,
+    public velocity: Vector = new Vector(),
+    public direction: Vector = new Vector(1, 0),
+    public mass: number = PhysicalObject.MASS
+  ) { }
+  properForces(): Array<Vector> {
     return this.externalForces;
   }
-  properAcceleration() {
+  properAcceleration(): Vector {
     var forces = new Vector();
     this.properForces().forEach((force) => {
       forces = forces.plus(force);
@@ -217,12 +205,12 @@ class PhysicalObject {
   }
   set referenceFrame(frame) {
     if (this._referenceFrame) {
-      this._referenceFrame.removeChild(this);
+      this._referenceFrame.removeObject(this);
     }
     this._referenceFrame = frame;
     this.resetPixiObjects();
   }
-  get referenceFrame() {
+  get referenceFrame(): ReferenceFrame {
     return this._referenceFrame;
   }
   resetPixiObjects() {
@@ -275,16 +263,16 @@ class PhysicalObject {
   }
 }
 
-class Ship extends PhysicalObject {
-  size = 50;
-  color = 0xffffff;
-  constructor(position, velocity = new Vector(), direction = new Vector(1, 0)) {
-    super(position, (velocity = velocity), (direction = direction));
-    this.thrust = 0;
-  }
+class PhysicalObjectWithThrust extends PhysicalObject {
+  public thrust: number = 0;
   properForces() {
     return [this.direction.times(this.thrust), ...super.properForces()];
   }
+}
+
+class Ship extends PhysicalObjectWithThrust {
+  readonly size = 50;
+  readonly color = 0xffffff;
   createPixiObject() {
     var graphics = new Graphics();
     graphics.beginFill(this.color);
@@ -306,7 +294,9 @@ class Station extends PhysicalObject {
   size = 180;
   color = 0xffffff;
   name = "Station 1";
-  update(properDT) {
+  private text: PIXI.Text | null = null;
+
+  update(properDT: number) {
     super.update(properDT);
     this.text.text = `Clock: ${this.t.toFixed(3)}`;
   }
@@ -326,7 +316,7 @@ class Station extends PhysicalObject {
     let text = new Text(
       "",
       new TextStyle({
-        fontStyle: "bold",
+        fontWeight: "bold",
         align: "center",
         fill: 0x00aa33,
         fontSize: 15,
@@ -352,12 +342,12 @@ class Station extends PhysicalObject {
     text.position.set(10, -10);
     text.visible = false;
     g.addChild(text);
-    g.mouseover = () => {
+    g.on("mouseover", () => {
       text.visible = true;
-    };
-    g.mouseout = () => {
+    });
+    g.on("mouseout", () => {
       text.visible = false;
-    };
+    });
     return g;
   }
 }
@@ -369,26 +359,24 @@ class ReferenceFrame extends Container {
   // spacetime wouldn't share a reference frame.
   // It's mostly a great optimization that allows us to only compute transformations once
   // per group of objects with locked velocities.
-  constructor(velocity = new Vector(), objects = []) {
+  public objectContainer: Container = new Container();
+  public minimapObjectContainer: Container = new Container();
+  constructor(public velocity: Vector = new Vector(), public objects: Set<PhysicalObject> = new Set()) {
     super();
-    this.objects = new Set();
-    this.objectContainer = new Container();
-    this.minimapObjectContainer = new Container();
     super.addChild(this.objectContainer);
-    this.velocity = velocity;
-    objects.forEach(this.addChild.bind(this));
+    objects.forEach(this.addObject.bind(this));
   }
-  addChild(object) {
+  addObject(object: PhysicalObject) {
     // PhysicalObject, not PIXI.DrawableObject
     this.objects.add(object);
     object.referenceFrame = this;
   }
-  removeChild(object) {
-    this.objects.remove(object);
-    this.objectContainer.remove(object.pixiObject);
-    this.minimapObjectContainer.remove(object.minimapObject);
+  removeObject(object: PhysicalObject) {
+    this.objects.delete(object);
+    this.objectContainer.removeChild(object.pixiObject);
+    this.minimapObjectContainer.removeChild(object.minimapObject);
   }
-  update(observerDT, observerFrame, observerPosition, oldObserverPosition) {
+  update(observerDT: number, observerFrame: ReferenceFrame, observerPosition: Vector, oldObserverPosition: Vector) {
     // This is complex and hard to get right.
     // - We have a player with a rest reference frame.
     //   - The player is always at the center of their reference frame.
@@ -430,12 +418,13 @@ class ReferenceFrame extends Container {
 }
 
 class Player {
-  constructor(object) {
-    // object is a PhysicalObject, not a PIXI.DrawableObject;
-    this.object = object;
-    this.referenceFrame = new ReferenceFrame(object.velocity, [object]);
+  readonly referenceFrame: ReferenceFrame;
+
+  constructor(readonly object: PhysicalObjectWithThrust) {
+    this.referenceFrame = new ReferenceFrame(object.velocity, new Set([object]));
   }
-  update(properDT) {
+
+  update(properDT: number) {
     // The player's object is always at the origin in its own reference frame.
     // The player's reference frame may move relative to the game world.
     this.object.update(properDT);
@@ -449,11 +438,12 @@ class Player {
   }
 }
 
-let posMod = (x, n) => ((x % n) + n) % n;
+let posMod = (x: number, n: number): number => ((x % n) + n) % n;
 
+// TODO: replace this with actual React and just render over the webgl :P
 class ReactiveText {
-  constructor(updateText, style = {}) {
-    this.updateText = updateText;
+  public pixiObject: Text;
+  constructor(readonly updateText: () => string, style = {}) {
     this.pixiObject = new Text("", new TextStyle({ ...style }));
   }
   update() {
@@ -463,58 +453,141 @@ class ReactiveText {
 }
 
 const WORLD_DATA = [
-  new ReferenceFrame(new Vector(0, 0), [
+  new ReferenceFrame(new Vector(0, 0), new Set([
     new Station(new Vector(-4000, 0)),
     new Station(new Vector(250, 250)),
     new Station(new Vector(4000, 0)),
-  ]),
+  ])),
 ];
 
-let minimap = (width, height) => {
-  let g = new Graphics();
-  g.lineStyle(3, 0x0000ff);
-  g.beginFill(0x000000);
-  g.drawRect(0, 0, width, height);
-  let objects = new Container();
-  objects.position.set(width / 2, height / 2);
-  objects.scale.set(MINIMAP_SCALE, MINIMAP_SCALE);
-  g.objects = objects;
-  g.addChild(objects);
-  g._objects_mask = new Graphics()
-    .beginFill(0xff3300)
-    .drawRect(3, 2, width - 3, height - 3)
-    .endFill();
-  g.addChild(g._objects_mask);
-  return g;
-};
+
+class Minimap extends Graphics {
+  public objects: Container = new Container();
+  private viewportWidth: number
+  private viewportHeight: number
+  private viewportOutline: Graphics = new Graphics();
+  private draggingViewport: boolean = false;
+  public onViewportSelect: (position: PIXI.ObservablePoint) => void = (position) => null;
+
+  interactive: boolean = true;
+
+  constructor(width: number, height: number, screen: PIXI.Rectangle) {
+    super();
+    this.viewportWidth = screen.width;
+    this.viewportHeight = screen.height;
+
+    // Draw background and outline
+    this.lineStyle(3, 0x0000ff);
+    this.beginFill(0x000000);
+    this.drawRect(0, 0, width, height);
+
+    // Set up objects container
+    this.objects.position.set(width / 2, height / 2);
+    this.objects.scale.set(MINIMAP_SCALE, MINIMAP_SCALE);
+    this.addChild(this.objects);
+
+    // Set up mask (don't display objects outside of minimap bounds)
+    this.objects.mask = new Graphics()
+      .beginFill(0xff3300)
+      .drawRect(3, 2, width - 3, height - 3)
+      .endFill();
+    // Adding as a child causes the mask's position to be relative to the Minimap's
+    this.addChild(this.objects.mask);
+
+    // Set up viewport outline
+    this.viewportOutline.mask = this.objects.mask;
+    this.objects.addChild(this.viewportOutline);
+
+    // Set up interaction events
+    this
+      .on("pointerdown", this.startDrag.bind(this))
+      .on("pointerup", this.endDrag.bind(this))
+      .on("pointerout", this.endDrag.bind(this))
+      .on("pointermove", this.dragMove.bind(this));
+  }
+
+  updateViewport(velocity: Vector, center: Vector) {
+    // Manually transform the viewport so we can control the line width
+    let { x, y } = center;
+    let deltaX = this.viewportWidth / 2,
+      deltaY = this.viewportHeight / 2;
+    let ll = new Vector(x - deltaX, y - deltaY),
+      lr = new Vector(x + deltaX, y - deltaY);
+    let ul = new Vector(x - deltaX, y + deltaY),
+      ur = new Vector(x + deltaX, y + deltaY);
+    let transform = velocity.inverseLorentzTransform();
+    let tll = transform.timesVector(ll),
+      tlr = transform.timesVector(lr),
+      tul = transform.timesVector(ul),
+      tur = transform.timesVector(ur);
+
+    this.viewportOutline
+      .clear()
+      .lineStyle(1 / MINIMAP_SCALE, 0x00ff00)
+      .moveTo(tll.x, tll.y)
+      .lineTo(tlr.x, tlr.y)
+      .lineTo(tur.x, tur.y)
+      .lineTo(tul.x, tul.y)
+      .lineTo(tll.x, tll.y);
+  }
+
+  startDrag(event: PIXI.InteractionEvent) {
+    this.draggingViewport = true;
+    this.onViewportSelect(event.data.getLocalPosition(this));
+  }
+
+  endDrag(event: PIXI.InteractionEvent) {
+    this.draggingViewport = false;
+  }
+
+  dragMove(event: PIXI.InteractionEvent) {
+    if (this.draggingViewport) this.onViewportSelect(event.data.getLocalPosition(this));
+  }
+}
 
 class Game {
-  constructor(app) {
-    this.app = app;
-    this.worldLayer = new Container();
+  // Game display info and tracking
+  public worldLayer: Container = new Container();
+  public hud: Container = new Container();  // TODO: make this React / move it outside of webgl
+  private _debugInfo: Array<ReactiveText> = [];
+  public followingPlayer: boolean = true;
+
+  public minimap: Minimap;
+  public viewportPosition: Vector;
+
+  // Game viz grid
+  private _playerGrid: Grid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x555555);
+  private _coordinateGrid: Grid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x448844);
+
+  // Game world state
+  public player: Player = new Player(
+    new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
+  );
+  public referenceFrames: Array<ReferenceFrame> = [];
+  public last_update_time: number = new Date().getTime();
+
+  // Constant
+  public thrust_delta: number = 7.5;
+
+  // TODO: Game should internally make and own the Application
+  constructor(public app: PIXI.Application) {
     this.worldLayer.transform.setFromMatrix(
       new PIXI.Matrix()
         .scale(PIXELS_PER_METER, PIXELS_PER_METER)
         .translate(app.screen.width / 2, app.screen.height / 2)
     );
 
-    this._debugInfo = [];
     this.buildHUD();
     app.stage.addChild(this.worldLayer);
     app.stage.addChild(this.hud);
-
-    this.player = new Player(
-      new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
-    );
     this.worldLayer.addChild(this.player.referenceFrame);
     this.minimap.objects.addChild(
       this.player.referenceFrame.minimapObjectContainer
     );
 
     this.viewportPosition = this.player.object.position;
-    this.followingPlayer = true;
 
-    this.referenceFrames = [];
+    // Add initial world data
     WORLD_DATA.forEach((frame) => {
       this.referenceFrames.push(frame);
       // The universe is always relative to the player's reference frame.
@@ -522,57 +595,12 @@ class Game {
       this.player.referenceFrame.addChildAt(frame, 0);
       // TODO
       this.minimap.objects.addChild(frame.minimapObjectContainer);
-      frame.minimapObjectContainer.mask = this.minimap._objects_mask;
+      // frame.minimapObjectContainer.mask = this.minimap.objects_mask;
     });
-
-    this._playerGrid = new Grid(
-      new Vector(-1000, -1000),
-      new Vector(1000, 1000),
-      100,
-      0x555555
-    );
-
-    this._coordinateGrid = new Grid(
-      new Vector(-1000, -1000),
-      new Vector(1000, 1000),
-      100,
-      0x448844
-    );
 
     this.player.referenceFrame.addChildAt(this._playerGrid, 0);
     // this.referenceFrames[0] is coordinate frame for now :P
     this.referenceFrames[0].addChildAt(this._coordinateGrid, 0);
-
-    this.last_update_time = new Date().getTime();
-
-    this.thrust_delta = 7.5;
-  }
-
-  updateMinimapViewport(velocity, center) {
-    // Manually transform the viewport so we can control the line width
-    let { x, y } = center;
-    let width = this.app.screen.width / 2,
-      height = this.app.screen.height / 2;
-    let ll = new Vector(x - width, y - height),
-      lr = new Vector(x + width, y - height);
-    let ul = new Vector(x - width, y + height),
-      ur = new Vector(x + width, y + height);
-    let transform = velocity.inverseLorentzTransform();
-    let tll = transform.timesVector(ll),
-      tlr = transform.timesVector(lr),
-      tul = transform.timesVector(ul),
-      tur = transform.timesVector(ur);
-    let viewport = new Graphics()
-      .lineStyle(1 / MINIMAP_SCALE, 0x00ff00)
-      .moveTo(tll.x, tll.y)
-      .lineTo(tlr.x, tlr.y)
-      .lineTo(tur.x, tur.y)
-      .lineTo(tul.x, tul.y)
-      .lineTo(tll.x, tll.y);
-    viewport.mask = this.minimap._objects_mask;
-    if (this.viewport) this.minimap.objects.removeChild(this.viewport);
-    this.viewport = viewport;
-    this.minimap.objects.addChild(viewport);
   }
 
   buildHUD() {
@@ -601,42 +629,21 @@ class Game {
     let minimap_width = this.app.screen.width / 4,
       minimap_height = this.app.screen.height / 4;
 
-    this.minimap = minimap(minimap_width, minimap_height);
+    this.minimap = new Minimap(minimap_width, minimap_height, this.app.screen);
     this.minimap.position.set(
       minimap_width / 10,
       this.app.screen.height - minimap_height - minimap_width / 10
     );
-
-    let self = this;
-    var dragging_minimap = false;
-    let minimapDragMove = (event) => {
-      if (dragging_minimap) {
-        console.log(event);
-        let { x, y } = event.data.getLocalPosition(self.minimap);
-        console.log(x, y);
-        this.viewportPosition = new Vector(
-          x - minimap_width / 2,
-          y - minimap_height / 2
-        )
-          .times(1 / MINIMAP_SCALE)
-          .plus(this.player.object.position);
-      }
-    };
-    let minimapStartDrag = (event) => {
-      dragging_minimap = true;
-      self.followingPlayer = false;
-      minimapDragMove(event);
-    };
-    let minimapEndDrag = (event) => {
-      dragging_minimap = false;
-    };
-    this.minimap.interactive = true;
-    // this.minimap.hitArea = this.minimap;
-    this.minimap
-      .on("pointerdown", minimapStartDrag)
-      .on("pointerup", minimapEndDrag)
-      .on("pointerout", minimapEndDrag)
-      .on("pointermove", minimapDragMove);
+    this.minimap.onViewportSelect = (({ x, y }: PIXI.ObservablePoint) => {
+      // TODO: move math into Minimap
+      this.viewportPosition = new Vector(
+        x - minimap_width / 2,
+        y - minimap_height / 2
+      )
+        .times(1 / MINIMAP_SCALE)
+        .plus(this.player.object.position);
+      this.followingPlayer = false;
+    }).bind(this);
 
     this.hud.addChild(this.minimap);
   }
@@ -649,7 +656,7 @@ class Game {
     let { position, velocity } = this.player.object;
     let { x, y } = position;
 
-    this._debugInfo.forEach((o) => o.update(dt));
+    this._debugInfo.forEach((o) => o.update());
 
     // We use the old position to compute doppler effects and observational delay
     // The simulator only computes new state as needed eg. as observed by the player
@@ -666,9 +673,9 @@ class Game {
 
     // Update UI with the new player position and viewpoint
     this.worldLayer.pivot.set(contractedViewpoint.x, contractedViewpoint.y);
-    this.updateMinimapViewport(velocity, contractedViewpoint.minus(position));
-    this._playerGrid.position = contractedViewpoint.times(-1);
-    this._coordinateGrid.position = contractedViewpoint.times(-1);
+    this.minimap.updateViewport(velocity, contractedViewpoint.minus(position));
+    this._playerGrid.setPosition(contractedViewpoint.times(-1));
+    this._coordinateGrid.setPosition(contractedViewpoint.times(-1));
   };
   tick = () => {
     let t = new Date().getTime();
@@ -721,7 +728,7 @@ let setup = () => {
   return new Promise((resolve) =>
     WebFont.load({
       google: { families: ["Major Mono Display"] },
-      active: resolve,
+      active: () => resolve(null),
     })
   );
 };
