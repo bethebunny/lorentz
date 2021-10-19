@@ -6,12 +6,14 @@
 		"author": "Stef Nelson-Lindall <bethebunny@gmail.com>",
 		"license": "MIT",
 		"scripts": {
-				"start": "webpack serve",
+				"watch": "tsc --project . --watch",
+				"serve": "python -m http.server -d dist",
 				"clean": "rm -rf dist/",
-				"build": "webpack build && cp index.html dist/",
+				"build": "tsc --project .",
 				"deploy": "gh-pages -d dist"
 		},
 		"dependencies": {
+				"@types/webfontloader": "^1.6.33",
 				"pixi.js": "^6.1.3",
 				"webfontloader": "^1.6.28"
 		}

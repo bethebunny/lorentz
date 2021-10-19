@@ -1,6 +1,11 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
-import * as PIXI from "pixi.js";
-import WebFont from "webfontloader";
+import { Container, Graphics, Text, TextStyle } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import * as PIXI from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+
+// WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
+import * as _WebFont from "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js";
+let WebFont = window.WebFont;
+// Force TypeScript to not compile out the import
+if (_WebFont) Object.defineProperty(window.WebFont, "loaded", { value: true });
 
 const C = 50; // Speed of light in meters per second
 const C2 = C * C;

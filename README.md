@@ -4,6 +4,12 @@ https://bethebunny.github.io/lorentz
 
 # Local development
 
+This project is designed to be easy to both read from a browser as well
+as fast and easy to develop on. It avoids webpack or similar bundlers in favor
+of relying on the browser's module system directly, and minimizing the number
+of dependencies, build steps, and obfuscation, while still allowing for
+good coding practices like types and modules.
+
 I recommend using VSCode for development.
 
 1. Make sure npm is installed locally.
@@ -12,26 +18,24 @@ I recommend using VSCode for development.
 
 3. Install dependencies
 
-I've tuned the webpack settings purely for development / fast (<2s) iteration time;
-this can easily explode if you install any more dependencies, so I recommend the incantations below
 ```
-sudo npm install -g webpack webpack-cli ts-loader
+sudo npm install -g typescript
 npm install
-npm link ts-loader
 ```
 
-4. Build -- this will set up a watcher to rebuild on file changes
+4. Build 
+
+This will set up a watcher to rebuild on file changes, with <1s build times once running
 
 ```
-webpack build --watch
+tsc --project . --watch
 ```
 
 5. Local webserver
 
 ```
 cp index.html dist/index.html
-cd dist
-python -m http.server
+python -m http.server -d dist
 ```
 
 6. Open your browser to https://localhost:8000

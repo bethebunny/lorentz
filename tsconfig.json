@@ -4,6 +4,12 @@
     "target": "esnext",
     "removeComments": false,
     "sourceMap": true,
-    "moduleResolution": "node"
-  }
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "exclude": ["node_modules"]
 }

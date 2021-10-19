@@ -1,0 +1,1 @@
+declare module "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs" { export * from "pixi.js" }
