@@ -1,0 +1,24 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches:
+      - master  # Set a branch name to trigger deployment
+  pull_request:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-20.04
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: npm install
+        run: npm install webpack webpack-cli ts-loader gh-pages
+
+      - name: Build
+        run: npm webpack build && cp index.html dist/
+
+      - name: Deploy
+        run: npx gh-pages -d dist
