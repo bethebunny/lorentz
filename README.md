@@ -19,8 +19,7 @@ I recommend using VSCode for development.
 3. Install dependencies
 
 ```
-sudo npm install -g typescript
-npm install
+npm install && npm install typescript
 ```
 
 4. Build 
@@ -28,7 +27,7 @@ npm install
 This will set up a watcher to rebuild on file changes, with <1s build times once running
 
 ```
-tsc --project . --watch
+npx tsc --project . --watch
 ```
 
 5. Local webserver
