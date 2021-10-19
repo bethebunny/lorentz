@@ -1,9 +1,9 @@
 import { C2 } from './constants.js';
 
-import { Matrix as PixiMatrix } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Matrix as PixiMatrix } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 
 export class Vector {
-  constructor(readonly x = 0, readonly y = 0) { }
+  constructor(readonly x = 0, readonly y = 0) {}
   relativisticPlus(other: Vector): Vector {
     // https://en.wikipedia.org/wiki/Wigner_rotation#Two_general_boosts
     // Not associative or commutative, also results in a net rotation (thomasRotation)
@@ -39,8 +39,8 @@ export class Vector {
       sign *
       Math.acos(
         Math.pow(1 + u_gamma + v_gamma + composite_gamma, 2) /
-        ((1 + u_gamma) * (1 + v_gamma) * (1 + composite_gamma)) -
-        1
+          ((1 + u_gamma) * (1 + v_gamma) * (1 + composite_gamma)) -
+          1
       )
     );
   }
@@ -60,12 +60,7 @@ export class Vector {
     return Math.pow(1 - (v * v) / C2, -0.5);
   }
   lorentzTransform(): Matrix2D {
-    return Matrix2D.fromEigenvectors(
-      this,
-      1 / this.gamma(),
-      this.orthogonal(),
-      1
-    );
+    return Matrix2D.fromEigenvectors(this, 1 / this.gamma(), this.orthogonal(), 1);
   }
   inverseLorentzTransform(): Matrix2D {
     return Matrix2D.fromEigenvectors(this, this.gamma(), this.orthogonal(), 1);
@@ -76,7 +71,7 @@ export class Vector {
 }
 
 export class Matrix2D {
-  constructor(public a: number, public b: number, public c: number, public d: number) { }
+  constructor(public a: number, public b: number, public c: number, public d: number) {}
   timesScalar = (s: number): Matrix2D =>
     new Matrix2D(this.a * s, this.b * s, this.c * s, this.d * s);
   timesVector = ({ x, y }: Vector): Vector =>
@@ -104,9 +99,4 @@ export class Matrix2D {
 }
 
 export let rotationMatrix = (theta: number) =>
-  new Matrix2D(
-    Math.cos(theta),
-    -Math.sin(theta),
-    Math.sin(theta),
-    Math.cos(theta)
-  );
+  new Matrix2D(Math.cos(theta), -Math.sin(theta), Math.sin(theta), Math.cos(theta));

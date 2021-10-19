@@ -1,8 +1,8 @@
 import { Vector, rotationMatrix } from './algebra.js';
 import { MINIMAP_SCALE } from './constants.js';
-import ReferenceFrame from "./ReferenceFrame.js";
+import ReferenceFrame from './ReferenceFrame.js';
 
-import { Graphics } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 
 export default class PhysicalObject {
   static MASS = 1;
@@ -22,7 +22,7 @@ export default class PhysicalObject {
     public velocity: Vector = new Vector(),
     public direction: Vector = new Vector(1, 0),
     public mass: number = PhysicalObject.MASS
-  ) { }
+  ) {}
   properForces(): Array<Vector> {
     return this.externalForces;
   }
@@ -73,14 +73,10 @@ export default class PhysicalObject {
       // I wish I had some intuition for what Thomas rotation means physically. Since the rotation
       // only happens between 2 boosts, but we consider ourselves to be at rest, why do we rotate when we boost
       // and what do we rotate relative to?
-      this.direction = rotationMatrix(
-        velocity.thomasRotationAngle(boost)
-      ).timesVector(direction);
+      this.direction = rotationMatrix(velocity.thomasRotationAngle(boost)).timesVector(direction);
     }
     if (this.angularVelocity != 0) {
-      this.direction = rotationMatrix(
-        properDT * this.angularVelocity
-      ).timesVector(this.direction);
+      this.direction = rotationMatrix(properDT * this.angularVelocity).timesVector(this.direction);
     }
     // Right now length contraction is basically computed here; we update the player's position in the coordinate frame
     // as v * dt * gamma, which can either be interpreted as length contraction (from the perspective of the ship)
