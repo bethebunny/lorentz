@@ -73,10 +73,14 @@ export default class PhysicalObject {
       // I wish I had some intuition for what Thomas rotation means physically. Since the rotation
       // only happens between 2 boosts, but we consider ourselves to be at rest, why do we rotate when we boost
       // and what do we rotate relative to?
-      this.direction = rotationMatrix(velocity.thomasRotationAngle(boost)).timesVector(direction);
+      this.direction = rotationMatrix(
+        velocity.thomasRotationAngle(boost)
+      ).timesVector(direction);
     }
     if (this.angularVelocity != 0) {
-      this.direction = rotationMatrix(properDT * this.angularVelocity).timesVector(this.direction);
+      this.direction = rotationMatrix(
+        properDT * this.angularVelocity
+      ).timesVector(this.direction);
     }
     // Right now length contraction is basically computed here; we update the player's position in the coordinate frame
     // as v * dt * gamma, which can either be interpreted as length contraction (from the perspective of the ship)

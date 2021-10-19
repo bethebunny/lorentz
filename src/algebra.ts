@@ -44,9 +44,11 @@ export class Vector {
       )
     );
   }
-  plus = (other: Vector): Vector => new Vector(this.x + other.x, this.y + other.y);
+  plus = (other: Vector): Vector =>
+    new Vector(this.x + other.x, this.y + other.y);
   dot = (other: Vector): number => this.x * other.x + this.y * other.y;
-  minus = (other: Vector): Vector => new Vector(this.x - other.x, this.y - other.y);
+  minus = (other: Vector): Vector =>
+    new Vector(this.x - other.x, this.y - other.y);
   times = (m: number): Vector => new Vector(this.x * m, this.y * m);
   magnitude = (): number => Math.sqrt(this.x * this.x + this.y * this.y);
   unit = (): Vector => this.times(1 / this.magnitude());
@@ -60,7 +62,12 @@ export class Vector {
     return Math.pow(1 - (v * v) / C2, -0.5);
   }
   lorentzTransform(): Matrix2D {
-    return Matrix2D.fromEigenvectors(this, 1 / this.gamma(), this.orthogonal(), 1);
+    return Matrix2D.fromEigenvectors(
+      this,
+      1 / this.gamma(),
+      this.orthogonal(),
+      1
+    );
   }
   inverseLorentzTransform(): Matrix2D {
     return Matrix2D.fromEigenvectors(this, this.gamma(), this.orthogonal(), 1);
@@ -71,7 +78,12 @@ export class Vector {
 }
 
 export class Matrix2D {
-  constructor(public a: number, public b: number, public c: number, public d: number) {}
+  constructor(
+    public a: number,
+    public b: number,
+    public c: number,
+    public d: number
+  ) {}
   timesScalar = (s: number): Matrix2D =>
     new Matrix2D(this.a * s, this.b * s, this.c * s, this.d * s);
   timesVector = ({ x, y }: Vector): Vector =>
@@ -88,7 +100,12 @@ export class Matrix2D {
     let determinant = a * d - b * c;
     return new Matrix2D(d, -b, -c, a).timesScalar(1 / determinant);
   }
-  static fromEigenvectors(v1: Vector, e1: number, v2: Vector, e2: number): Matrix2D {
+  static fromEigenvectors(
+    v1: Vector,
+    e1: number,
+    v2: Vector,
+    e2: number
+  ): Matrix2D {
     let scale = new Matrix2D(e1, 0, 0, e2);
     let basis = new Matrix2D(v1.x, v2.x, v1.y, v2.y);
     return basis.timesMatrix(scale.timesMatrix(basis.inverse()));
@@ -99,4 +116,9 @@ export class Matrix2D {
 }
 
 export let rotationMatrix = (theta: number) =>
-  new Matrix2D(Math.cos(theta), -Math.sin(theta), Math.sin(theta), Math.cos(theta));
+  new Matrix2D(
+    Math.cos(theta),
+    -Math.sin(theta),
+    Math.sin(theta),
+    Math.cos(theta)
+  );

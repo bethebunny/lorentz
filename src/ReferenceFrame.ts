@@ -49,7 +49,9 @@ export default class ReferenceFrame extends Container {
     //   - have a second container inside it whose coordinates are relative to the player's position
     //      - the objects themselves have position in world coordinates
     //      - the container then has position of the inverse of player position
-    let relativeVelocity = this.velocity.times(-1).relativisticPlus(observerFrame.velocity);
+    let relativeVelocity = this.velocity
+      .times(-1)
+      .relativisticPlus(observerFrame.velocity);
     let gamma = relativeVelocity.gamma();
     let properDT = observerDT * gamma;
 
@@ -63,9 +65,14 @@ export default class ReferenceFrame extends Container {
 
     // Offset frame object container relative to the observer
     this.objectContainer.position.set(-observerPosition.x, -observerPosition.y);
-    this.minimapObjectContainer.position.set(-observerPosition.x, -observerPosition.y);
+    this.minimapObjectContainer.position.set(
+      -observerPosition.x,
+      -observerPosition.y
+    );
 
     // Update the lorentz contraction transform
-    this.transform.setFromMatrix(relativeVelocity.lorentzTransform().toPixiMatrix());
+    this.transform.setFromMatrix(
+      relativeVelocity.lorentzTransform().toPixiMatrix()
+    );
   }
 }

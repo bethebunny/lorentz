@@ -1,5 +1,5 @@
-import { Vector } from './algebra.js'
-import { C, MINIMAP_SCALE, PIXELS_PER_METER } from './constants.js'
+import { Vector } from './algebra.js';
+import { C, MINIMAP_SCALE, PIXELS_PER_METER } from './constants.js';
 
 import Minimap from './Minimap.js';
 
@@ -8,14 +8,19 @@ import Ship from './Ship.js';
 import Station from './Station.js';
 import ReferenceFrame from './ReferenceFrame.js';
 
-import { Container, Graphics, Text, TextStyle } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
-import * as PIXI from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import {
+  Container,
+  Graphics,
+  Text,
+  TextStyle
+} from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
-import * as _WebFont from "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js";
+import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
 let WebFont = window.WebFont;
 // Force TypeScript to not compile out the import
-if (_WebFont) Object.defineProperty(window.WebFont, "loaded", { value: true });
+if (_WebFont) Object.defineProperty(window.WebFont, 'loaded', { value: true });
 
 /* TODO:
     - Display all visible grid coordinates
@@ -47,7 +52,12 @@ if (_WebFont) Object.defineProperty(window.WebFont, "loaded", { value: true });
 // TODO: we want `step` to vary in x and y so we can have a separate scale / color
 // Useful since length contraction only happens along the axis of travel
 class Grid extends Graphics {
-  constructor({ x: xmin, y: ymin }: Vector, { x: xmax, y: ymax }: Vector, private step: number, private color: number) {
+  constructor(
+    { x: xmin, y: ymin }: Vector,
+    { x: xmax, y: ymax }: Vector,
+    private step: number,
+    private color: number
+  ) {
     super();
     this.step = step;
     this.color = color;
@@ -78,7 +88,10 @@ class Player {
   readonly referenceFrame: ReferenceFrame;
 
   constructor(readonly object: PhysicalObjectWithThrust) {
-    this.referenceFrame = new ReferenceFrame(object.velocity, new Set([object]));
+    this.referenceFrame = new ReferenceFrame(
+      object.velocity,
+      new Set([object])
+    );
   }
 
   update(properDT: number) {
@@ -101,7 +114,7 @@ let posMod = (x: number, n: number): number => ((x % n) + n) % n;
 class ReactiveText {
   public pixiObject: Text;
   constructor(readonly updateText: () => string, style = {}) {
-    this.pixiObject = new Text("", new TextStyle({ ...style }));
+    this.pixiObject = new Text('', new TextStyle({ ...style }));
   }
   update() {
     // TODO: this currently updates every frame, it should be able to be marked as dirty or something
@@ -110,17 +123,20 @@ class ReactiveText {
 }
 
 const WORLD_DATA = [
-  new ReferenceFrame(new Vector(0, 0), new Set([
-    new Station(new Vector(-4000, 0)),
-    new Station(new Vector(250, 250)),
-    new Station(new Vector(4000, 0)),
-  ])),
+  new ReferenceFrame(
+    new Vector(0, 0),
+    new Set([
+      new Station(new Vector(-4000, 0)),
+      new Station(new Vector(250, 250)),
+      new Station(new Vector(4000, 0))
+    ])
+  )
 ];
 
 class Game {
   // Game display info and tracking
   public worldLayer: Container = new Container();
-  public hud: Container = new Container();  // TODO: make this React / move it outside of webgl
+  public hud: Container = new Container(); // TODO: make this React / move it outside of webgl
   private _debugInfo: Array<ReactiveText> = [];
   public followingPlayer: boolean = true;
 
@@ -128,8 +144,18 @@ class Game {
   public viewportPosition: Vector;
 
   // Game viz grid
-  private _playerGrid: Grid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x555555);
-  private _coordinateGrid: Grid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x448844);
+  private _playerGrid: Grid = new Grid(
+    new Vector(-1000, -1000),
+    new Vector(1000, 1000),
+    100,
+    0x555555
+  );
+  private _coordinateGrid: Grid = new Grid(
+    new Vector(-1000, -1000),
+    new Vector(1000, 1000),
+    100,
+    0x448844
+  );
 
   // Game world state
   public player: Player = new Player(
@@ -186,12 +212,12 @@ class Game {
       () => `Gamma: ${this.player.referenceFrame.velocity.gamma().toFixed(5)}`,
       () => `Velocity direction: ${this.player.referenceFrame.velocity.unit()}`,
       () => `Acceleration: ${this.player.object.properAcceleration()}`,
-      () => `Time: ${this.player.object.t.toFixed(3)}`,
+      () => `Time: ${this.player.object.t.toFixed(3)}`
     ].forEach((updateText, i) => {
       let text = new ReactiveText(updateText, {
-        fontFamily: "Major Mono Display",
+        fontFamily: 'Major Mono Display',
         fill: 0xffffff,
-        fontSize: 15,
+        fontSize: 15
       });
       this._debugInfo.push(text);
       text.pixiObject.position.set(10, (i + 1) * 20);
@@ -256,19 +282,19 @@ class Game {
   };
   handleKeyDown = ({ code }) => {
     switch (code) {
-      case "KeyW":
+      case 'KeyW':
         this.player.object.thrust = this.thrust_delta;
         break;
-      case "KeyS":
+      case 'KeyS':
         this.player.object.thrust = -this.thrust_delta;
         break;
-      case "KeyA":
+      case 'KeyA':
         this.player.object.angularVelocity = -3;
         break;
-      case "KeyD":
+      case 'KeyD':
         this.player.object.angularVelocity = 3;
         break;
-      case "Space":
+      case 'Space':
         this.followingPlayer = true;
         break;
     }
@@ -276,16 +302,16 @@ class Game {
   handleKeyUp = ({ code }) => {
     console.log(code);
     switch (code) {
-      case "KeyW":
+      case 'KeyW':
         this.player.object.thrust = 0;
         break;
-      case "KeyS":
+      case 'KeyS':
         this.player.object.thrust = 0;
         break;
-      case "KeyA":
+      case 'KeyA':
         this.player.object.angularVelocity = 0;
         break;
-      case "KeyD":
+      case 'KeyD':
         this.player.object.angularVelocity = 0;
         break;
     }
@@ -299,8 +325,8 @@ class Game {
 let setup = () => {
   return new Promise((resolve) =>
     WebFont.load({
-      google: { families: ["Major Mono Display"] },
-      active: () => resolve(null),
+      google: { families: ['Major Mono Display'] },
+      active: () => resolve(null)
     })
   );
 };
@@ -312,16 +338,16 @@ let main = () => {
     width,
     height,
     backgroundColor: 0x191919,
-    antialias: true,
+    antialias: true
   });
   document.body.appendChild(app.view);
 
   let game = new Game(app);
   // Can also just use setTimeout but using app.ticker in case that's better for frame something something
   app.ticker.add(game.tick);
-  document.addEventListener("keypress", game.handleKeyPress);
-  document.addEventListener("keydown", game.handleKeyDown);
-  document.addEventListener("keyup", game.handleKeyUp);
+  document.addEventListener('keypress', game.handleKeyPress);
+  document.addEventListener('keydown', game.handleKeyDown);
+  document.addEventListener('keyup', game.handleKeyUp);
 };
 
-document.addEventListener("DOMContentLoaded", () => setup().then(main));
+document.addEventListener('DOMContentLoaded', () => setup().then(main));

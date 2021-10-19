@@ -13,7 +13,9 @@ export default class Minimap extends Graphics {
   private viewportHeight: number;
   private viewportOutline: Graphics = new Graphics();
   private draggingViewport: boolean = false;
-  public onViewportSelect: (position: PIXI.ObservablePoint) => void = (position) => null;
+  public onViewportSelect: (position: PIXI.ObservablePoint) => void = (
+    position
+  ) => null;
 
   interactive: boolean = true;
 
@@ -86,6 +88,7 @@ export default class Minimap extends Graphics {
   }
 
   dragMove(event: PIXI.InteractionEvent) {
-    if (this.draggingViewport) this.onViewportSelect(event.data.getLocalPosition(this));
+    if (this.draggingViewport)
+      this.onViewportSelect(event.data.getLocalPosition(this));
   }
 }
