@@ -1,6 +1,6 @@
-import { Vector } from "./algebra.js";
-import { Container, Graphics } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
-import * as PIXI from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Vector } from './algebra.js';
+import { Container, Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class Minimap extends Graphics {
     objects: Container;
     private viewportWidth;

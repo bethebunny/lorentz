@@ -1,5 +1,5 @@
 import PhysicalObjectWithThrust from './PhysicalObjectWithThrust.js';
-import { Graphics } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class Ship extends PhysicalObjectWithThrust {
     size = 50;
     color = 0xffffff;

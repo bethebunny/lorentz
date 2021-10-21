@@ -1,6 +1,6 @@
-import { MINIMAP_SCALE } from "./constants.js";
-import { Vector } from "./algebra.js";
-import { Container, Graphics } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { MINIMAP_SCALE } from './constants.js';
+import { Vector } from './algebra.js';
+import { Container, Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class Minimap extends Graphics {
     objects = new Container();
     viewportWidth;
@@ -32,11 +32,10 @@ export default class Minimap extends Graphics {
         this.viewportOutline.mask = this.objects.mask;
         this.objects.addChild(this.viewportOutline);
         // Set up interaction events
-        this
-            .on("pointerdown", this.startDrag.bind(this))
-            .on("pointerup", this.endDrag.bind(this))
-            .on("pointerout", this.endDrag.bind(this))
-            .on("pointermove", this.dragMove.bind(this));
+        this.on('pointerdown', this.startDrag.bind(this))
+            .on('pointerup', this.endDrag.bind(this))
+            .on('pointerout', this.endDrag.bind(this))
+            .on('pointermove', this.dragMove.bind(this));
     }
     updateViewport(velocity, center) {
         // Manually transform the viewport so we can control the line width

@@ -1,10 +1,10 @@
 import PhysicalObject from './PhysicalObject.js';
-import { Graphics, Text, TextStyle } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
-import * as PIXI from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Graphics, Text, TextStyle } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class Station extends PhysicalObject {
     size = 180;
     color = 0xffffff;
-    name = "Station 1";
+    name = 'Station 1';
     text = null;
     update(properDT) {
         super.update(properDT);
@@ -21,11 +21,11 @@ export default class Station extends PhysicalObject {
         graphics.lineTo(radius, 0);
         // Changing text is supposedly expensive, might need to figure out a better option
         // Better option is to use BitmapText, we'll cross that bridge later
-        let text = new Text("", new TextStyle({
-            fontWeight: "bold",
-            align: "center",
+        let text = new Text('', new TextStyle({
+            fontWeight: 'bold',
+            align: 'center',
             fill: 0x00aa33,
-            fontSize: 15,
+            fontSize: 15
         }));
         text.position.set(-35, 20);
         this.text = text;
@@ -39,15 +39,15 @@ export default class Station extends PhysicalObject {
         let text = new Text(this.name, new TextStyle({
             fill: 0xffffff,
             fontSize: 10,
-            fontFamily: "Major Mono Display",
+            fontFamily: 'Major Mono Display'
         }));
         text.position.set(10, -10);
         text.visible = false;
         g.addChild(text);
-        g.on("mouseover", () => {
+        g.on('mouseover', () => {
             text.visible = true;
         });
-        g.on("mouseout", () => {
+        g.on('mouseout', () => {
             text.visible = false;
         });
         return g;

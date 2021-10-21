@@ -1,6 +1,6 @@
 import { Vector } from './algebra.js';
-import ReferenceFrame from "./ReferenceFrame.js";
-import { Graphics } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import ReferenceFrame from './ReferenceFrame.js';
+import { Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class PhysicalObject {
     position: Vector;
     velocity: Vector;

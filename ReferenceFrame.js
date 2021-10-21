@@ -1,6 +1,6 @@
 import { Vector } from './algebra.js';
 import { C } from './constants.js';
-import { Container } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Container } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class ReferenceFrame extends Container {
     velocity;
     objects;

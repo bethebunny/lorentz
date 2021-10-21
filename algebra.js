@@ -1,5 +1,5 @@
 import { C2 } from './constants.js';
-import { Matrix as PixiMatrix } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Matrix as PixiMatrix } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export class Vector {
     x;
     y;

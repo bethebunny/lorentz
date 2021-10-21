@@ -4,14 +4,14 @@ import Minimap from './Minimap.js';
 import Ship from './Ship.js';
 import Station from './Station.js';
 import ReferenceFrame from './ReferenceFrame.js';
-import { Container, Graphics, Text, TextStyle } from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
-import * as PIXI from "https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs";
+import { Container, Graphics, Text, TextStyle } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
-import * as _WebFont from "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js";
+import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
 let WebFont = window.WebFont;
 // Force TypeScript to not compile out the import
 if (_WebFont)
-    Object.defineProperty(window.WebFont, "loaded", { value: true });
+    Object.defineProperty(window.WebFont, 'loaded', { value: true });
 /* TODO:
     - Display all visible grid coordinates
         - Regardless of viewpoint
@@ -95,7 +95,7 @@ class ReactiveText {
     pixiObject;
     constructor(updateText, style = {}) {
         this.updateText = updateText;
-        this.pixiObject = new Text("", new TextStyle({ ...style }));
+        this.pixiObject = new Text('', new TextStyle({ ...style }));
     }
     update() {
         // TODO: this currently updates every frame, it should be able to be marked as dirty or something
@@ -106,8 +106,8 @@ const WORLD_DATA = [
     new ReferenceFrame(new Vector(0, 0), new Set([
         new Station(new Vector(-4000, 0)),
         new Station(new Vector(250, 250)),
-        new Station(new Vector(4000, 0)),
-    ])),
+        new Station(new Vector(4000, 0))
+    ]))
 ];
 class Game {
     app;
@@ -161,12 +161,12 @@ class Game {
             () => `Gamma: ${this.player.referenceFrame.velocity.gamma().toFixed(5)}`,
             () => `Velocity direction: ${this.player.referenceFrame.velocity.unit()}`,
             () => `Acceleration: ${this.player.object.properAcceleration()}`,
-            () => `Time: ${this.player.object.t.toFixed(3)}`,
+            () => `Time: ${this.player.object.t.toFixed(3)}`
         ].forEach((updateText, i) => {
             let text = new ReactiveText(updateText, {
-                fontFamily: "Major Mono Display",
+                fontFamily: 'Major Mono Display',
                 fill: 0xffffff,
-                fontSize: 15,
+                fontSize: 15
             });
             this._debugInfo.push(text);
             text.pixiObject.position.set(10, (i + 1) * 20);
@@ -216,19 +216,19 @@ class Game {
     };
     handleKeyDown = ({ code }) => {
         switch (code) {
-            case "KeyW":
+            case 'KeyW':
                 this.player.object.thrust = this.thrust_delta;
                 break;
-            case "KeyS":
+            case 'KeyS':
                 this.player.object.thrust = -this.thrust_delta;
                 break;
-            case "KeyA":
+            case 'KeyA':
                 this.player.object.angularVelocity = -3;
                 break;
-            case "KeyD":
+            case 'KeyD':
                 this.player.object.angularVelocity = 3;
                 break;
-            case "Space":
+            case 'Space':
                 this.followingPlayer = true;
                 break;
         }
@@ -236,16 +236,16 @@ class Game {
     handleKeyUp = ({ code }) => {
         console.log(code);
         switch (code) {
-            case "KeyW":
+            case 'KeyW':
                 this.player.object.thrust = 0;
                 break;
-            case "KeyS":
+            case 'KeyS':
                 this.player.object.thrust = 0;
                 break;
-            case "KeyA":
+            case 'KeyA':
                 this.player.object.angularVelocity = 0;
                 break;
-            case "KeyD":
+            case 'KeyD':
                 this.player.object.angularVelocity = 0;
                 break;
         }
@@ -257,8 +257,8 @@ class Game {
 }
 let setup = () => {
     return new Promise((resolve) => WebFont.load({
-        google: { families: ["Major Mono Display"] },
-        active: () => resolve(null),
+        google: { families: ['Major Mono Display'] },
+        active: () => resolve(null)
     }));
 };
 let main = () => {
@@ -267,15 +267,15 @@ let main = () => {
         width,
         height,
         backgroundColor: 0x191919,
-        antialias: true,
+        antialias: true
     });
     document.body.appendChild(app.view);
     let game = new Game(app);
     // Can also just use setTimeout but using app.ticker in case that's better for frame something something
     app.ticker.add(game.tick);
-    document.addEventListener("keypress", game.handleKeyPress);
-    document.addEventListener("keydown", game.handleKeyDown);
-    document.addEventListener("keyup", game.handleKeyUp);
+    document.addEventListener('keypress', game.handleKeyPress);
+    document.addEventListener('keydown', game.handleKeyDown);
+    document.addEventListener('keyup', game.handleKeyUp);
 };
-document.addEventListener("DOMContentLoaded", () => setup().then(main));
+document.addEventListener('DOMContentLoaded', () => setup().then(main));
 //# sourceMappingURL=main.js.map
