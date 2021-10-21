@@ -12,9 +12,14 @@ good coding practices like types and modules.
 
 I recommend using VSCode for development.
 
-1. Make sure npm is installed locally.
+1. Make sure npm and python >=3 are installed locally.
 
-2. Clone this repo (all further commands run from the root repo directory)
+2. Clone this repo
+
+```
+git clone https://github.com/bethebunny/lorentz.git
+cd lorentz
+```
 
 3. Install dependencies
 
