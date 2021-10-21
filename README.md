@@ -1,5 +1,7 @@
 # Try it out
 
+![Auto-deploy](https://github.com/github/docs/actions/workflows/pages.yml/badge.svg)
+
 https://bethebunny.github.io/lorentz
 
 # Local development
