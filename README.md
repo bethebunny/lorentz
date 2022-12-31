@@ -29,7 +29,7 @@ cd lorentz
 npm install && npm install typescript
 ```
 
-4. Build 
+4. Build
 
 This will set up a watcher to rebuild on file changes, with <1s build times once running
 
@@ -41,6 +41,7 @@ npx tsc --project . --watch
 
 ```
 cp index.html dist/index.html
+ln -s ../src dist/src  # sets up source maps
 python -m http.server -d dist
 ```
 
