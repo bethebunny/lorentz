@@ -8,7 +8,7 @@
 		"scripts": {
 				"watch": "tsc --project . --watch",
 				"serve": "python -m http.server -d dist",
-				"clean": "rm -rf dist/",
+				"clean": "rm -rf dist/ tsconfig.tsbuildinfo",
 				"build": "tsc --project .",
 				"deploy": "gh-pages -d dist"
 		},
