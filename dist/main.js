@@ -6,6 +6,8 @@ import Station from './Station.js';
 import ReferenceFrame from './ReferenceFrame.js';
 import { Container, Graphics, Text, TextStyle } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import { React, ReactDOM } from 'https://unpkg.com/es-react/dev';
+const { useState, useEffect, Component } = React;
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
 import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
 let WebFont = window.WebFont;
@@ -102,6 +104,49 @@ class ReactiveText {
         this.pixiObject.text = this.updateText();
     }
 }
+class HUDState {
+    position;
+    velocity;
+    acceleration;
+    time;
+    constructor(position, velocity, acceleration, time) {
+        this.position = position;
+        this.velocity = velocity;
+        this.acceleration = acceleration;
+        this.time = time;
+    }
+    static fromGame(game) {
+        const player = game.player;
+        return new HUDState(player.object.position, player.referenceFrame.velocity, player.object.properAcceleration(), player.object.t);
+    }
+}
+// TODO: we should be able to turn this pattern into a type somehow, it only depends on `HUDState`
+function HUD({ game }) {
+    const [state, setState] = useState(HUDState.fromGame(game));
+    useEffect(() => {
+        const token = game.subscribe(game => setState(HUDState.fromGame(game)));
+        return () => game.unsubscribe(token);
+    }, [game]);
+    return React.createElement("div", { className: "navText" },
+        React.createElement("p", null,
+            "Position: ",
+            state.position.toString()),
+        React.createElement("p", null,
+            "Beta: ",
+            (state.velocity.magnitude() / C).toFixed(5)),
+        React.createElement("p", null,
+            "Gamma: ",
+            state.velocity.gamma().toFixed(5)),
+        React.createElement("p", null,
+            "Velocity direction: ",
+            state.velocity.unit().toString()),
+        React.createElement("p", null,
+            "Acceleration: ",
+            state.acceleration.toString()),
+        React.createElement("p", null,
+            "Time: ",
+            state.time.toFixed(3)));
+}
 const WORLD_DATA = [
     new ReferenceFrame(new Vector(0, 0), new Set([
         new Station(new Vector(-4000, 0)),
@@ -111,11 +156,15 @@ const WORLD_DATA = [
 ];
 class Game {
     app;
+    reactRoot;
     // Game display info and tracking
     worldLayer = new Container();
-    hud = new Container(); // TODO: make this React / move it outside of webgl
+    // public hud: React.DOMElement = <HUD />;
+    minimapContainer = new Container();
+    // public hud: Container = new Container(); // TODO: make this React / move it outside of webgl
     _debugInfo = [];
     followingPlayer = true;
+    _subscribers = new Set();
     minimap;
     viewportPosition;
     // Game viz grid
@@ -128,14 +177,33 @@ class Game {
     // Constant
     thrust_delta = 7.5;
     // TODO: Game should internally make and own the Application
-    constructor(app) {
+    constructor(app, reactRoot) {
         this.app = app;
+        this.reactRoot = reactRoot;
         this.worldLayer.transform.setFromMatrix(new PIXI.Matrix()
             .scale(PIXELS_PER_METER, PIXELS_PER_METER)
             .translate(app.screen.width / 2, app.screen.height / 2));
-        this.buildHUD();
+        // TODO: Haven't written down much today, but rough state right now
+        // - Got text rendering in react \o/
+        // - There's still some weirdness with es-react, we can't use the most recent versions of react
+        // - We can't compile and self-host modules, which would be _really_ nice, could hack/run without network access
+        // - Minimap
+        //   - Is still part of the "HUD"
+        //   - Has some extra container we probably don't need
+        //   - Probably _could_ be pulled out into a separate HTML element, eg. style and placement could be managed with CSS
+        //   - Unclear whether PIXI would be chill with this
+        // - State model
+        //   - State is owned by the Game instance
+        //   - React components can follow the pattern HUD uses to subscribe to Game state updates
+        //   - They're responsible for extracting components they care about, and deciding if they need to re-render, through their state object
+        //   - They also have the Game instance, in case they want to push state changes back
+        //   - References:
+        //     - https://reactjs.org/docs/integrating-with-other-libraries.html#extracting-data-from-backbone-models
+        //     - https://reactjs.org/docs/hooks-effect.html#example-using-hooks-1
+        reactRoot.render(React.createElement(HUD, { game: this }));
+        this.buildMinimap();
         app.stage.addChild(this.worldLayer);
-        app.stage.addChild(this.hud);
+        app.stage.addChild(this.minimapContainer); // TODO: I'm sure this has something unnecessary
         this.worldLayer.addChild(this.player.referenceFrame);
         this.minimap.objects.addChild(this.player.referenceFrame.minimapObjectContainer);
         this.viewportPosition = this.player.object.position;
@@ -153,25 +221,7 @@ class Game {
         // this.referenceFrames[0] is coordinate frame for now :P
         this.referenceFrames[0].addChildAt(this._coordinateGrid, 0);
     }
-    buildHUD() {
-        this.hud = new Container();
-        [
-            () => `Position ${this.player.object.position}`,
-            () => `Beta: ${(this.player.referenceFrame.velocity.magnitude() / C).toFixed(5)}c`,
-            () => `Gamma: ${this.player.referenceFrame.velocity.gamma().toFixed(5)}`,
-            () => `Velocity direction: ${this.player.referenceFrame.velocity.unit()}`,
-            () => `Acceleration: ${this.player.object.properAcceleration()}`,
-            () => `Time: ${this.player.object.t.toFixed(3)}`
-        ].forEach((updateText, i) => {
-            let text = new ReactiveText(updateText, {
-                fontFamily: 'Major Mono Display',
-                fill: 0xffffff,
-                fontSize: 15
-            });
-            this._debugInfo.push(text);
-            text.pixiObject.position.set(10, (i + 1) * 20);
-            this.hud.addChild(text.pixiObject);
-        });
+    buildMinimap() {
         let minimap_width = this.app.screen.width / 4, minimap_height = this.app.screen.height / 4;
         this.minimap = new Minimap(minimap_width, minimap_height, this.app.screen);
         this.minimap.position.set(minimap_width / 10, this.app.screen.height - minimap_height - minimap_width / 10);
@@ -182,8 +232,15 @@ class Game {
                 .plus(this.player.object.position);
             this.followingPlayer = false;
         }).bind(this);
-        this.hud.addChild(this.minimap);
+        this.minimapContainer.addChild(this.minimap);
     }
+    subscribe = (callback) => {
+        this._subscribers.add(callback);
+        return callback;
+    };
+    unsubscribe = (token) => {
+        this._subscribers.delete(token);
+    };
     updateState = (dt) => {
         // dt is proper time for the player
         let oldPosition = this.player.object.position;
@@ -208,6 +265,8 @@ class Game {
         this.minimap.updateViewport(velocity, contractedViewpoint.minus(position));
         this._playerGrid.setPosition(contractedViewpoint.times(-1));
         this._coordinateGrid.setPosition(contractedViewpoint.times(-1));
+        // Update any game state subscribers
+        this._subscribers.forEach(callback => callback(this));
     };
     tick = () => {
         let t = new Date().getTime();
@@ -270,7 +329,12 @@ let main = () => {
         antialias: true
     });
     document.body.appendChild(app.view);
-    let game = new Game(app);
+    console.log(React.useState);
+    console.log(ReactDOM.render);
+    let reactRoot = {
+        render: node => ReactDOM.render(node, document.getElementById('react-root')),
+    };
+    let game = new Game(app, reactRoot);
     // Can also just use setTimeout but using app.ticker in case that's better for frame something something
     app.ticker.add(game.tick);
     document.addEventListener('keypress', game.handleKeyPress);
