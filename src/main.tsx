@@ -3,6 +3,7 @@ import { C, MINIMAP_SCALE, PIXELS_PER_METER } from './constants.js';
 
 import Minimap from './Minimap.js';
 
+import PhysicalObject from './PhysicalObject.js';
 import PhysicalObjectWithThrust from './PhysicalObjectWithThrust.js';
 import Ship from './Ship.js';
 import Station from './Station.js';
@@ -17,7 +18,7 @@ import {
 import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 
 import { React, ReactDOM } from 'https://unpkg.com/es-react/dev';
-const { useState, useEffect, Component } = React;
+const { createContext, useContext, useState, useEffect, Component } = React;
 
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
 import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
@@ -125,42 +126,60 @@ class ReactiveText {
   }
 }
 
-class HUDState {
-  constructor(
-    public readonly position: Vector,
-    public readonly velocity: Vector,
-    public readonly acceleration: Vector,
-    public readonly time: Number,
-  ) {}
+const GameContext = createContext(null);
 
-  static fromGame(game: Game): HUDState {
-    const player = game.player;
-    return new HUDState(
-      player.object.position,
-      player.referenceFrame.velocity,
-      player.object.properAcceleration(),
-      player.object.t,
-    );
-  }
-}
-
-// TODO: we should be able to turn this pattern into a type somehow, it only depends on `HUDState`
-function HUD({game}: {game: Game}) {
-  const [state, setState] = useState(HUDState.fromGame(game));
+function useGameState<T>(stateFn: (game: Game) => T): T {
+  const game = useContext(GameContext);
+  const [gameState, setGameState] = useState(stateFn(game));
 
   useEffect(() => {
-    const token = game.subscribe(game => setState(HUDState.fromGame(game)));
+    const token = game.subscribe(game => setGameState(stateFn(game)));
     return () => game.unsubscribe(token);
   }, [game]);
 
+  return gameState;
+}
+
+function HUD({player}: {player: Player}) {
+  const position = useGameState(() => player.object.position);
+  const velocity = useGameState(() => player.referenceFrame.velocity);
+  const acceleration = useGameState(() => player.object.properAcceleration());
+  const time = useGameState(() => player.object.t);
+
   return <div className="navText">
-    <p>Position: {state.position.toString()}</p>
-    <p>Beta: {(state.velocity.magnitude() / C).toFixed(5)}</p>
-    <p>Gamma: {state.velocity.gamma().toFixed(5)}</p>
-    <p>Velocity direction: {state.velocity.unit().toString()}</p>
-    <p>Acceleration: {state.acceleration.toString()}</p>
-    <p>Time: {state.time.toFixed(3)}</p>
+    <p>Position: {position.toString()}</p>
+    <p>Beta: {(velocity.magnitude() / C).toFixed(5)}</p>
+    <p>Gamma: {velocity.gamma().toFixed(5)}</p>
+    <p>Velocity direction: {velocity.unit().toString()}</p>
+    <p>Acceleration: {acceleration.toString()}</p>
+    <p>Time: {time.toFixed(3)}</p>
   </div>;
+}
+
+function InspectionPane({selected}: {selected: PhysicalObject}) {
+  if (selected === null) {
+    return <div />;
+  }
+
+  const time = useGameState(() => selected.t);
+  const position = useGameState(() => selected.position);
+
+  return <div className="inspectionPane">
+    <p>Name: {selected.toString()}</p>
+    <p>Time: {time.toFixed(3)}</p>
+    <p>Position: {position.toString()}</p>
+    <p>Distance, relative velocity/gamma, ETA: TODO</p>
+  </div>;
+}
+
+function UI() {
+  const player = useGameState(game => game.player);
+  const selected = useGameState(game => game.selected);
+
+  return <div>
+    <HUD player={player}/>
+    <InspectionPane selected={selected}/>
+  </div>
 }
 
 const WORLD_DATA = [
@@ -183,16 +202,14 @@ type SubscribeToken = (game: Game) => any;
 class Game {
   // Game display info and tracking
   public worldLayer: Container = new Container();
-  // public hud: React.DOMElement = <HUD />;
-  public minimapContainer: Container = new Container();
-  // public hud: Container = new Container(); // TODO: make this React / move it outside of webgl
-  private _debugInfo: Array<ReactiveText> = [];
   public followingPlayer: boolean = true;
-
-  private _subscribers: Set<(game: Game) => any> = new Set();
-
   public minimap: Minimap;
   public viewportPosition: Vector;
+  public selected: PhysicalObject | null = null;
+
+  // Callbacks updated after game state update
+  private _subscribers: Set<(game: Game) => any> = new Set();
+
 
   // Game viz grid
   private _playerGrid: Grid = new Grid(
@@ -213,10 +230,10 @@ class Game {
     new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
   );
   public referenceFrames: Array<ReferenceFrame> = [];
-  public last_update_time: number = new Date().getTime();
+  public lastUpdateTime: number = new Date().getTime();
 
   // Constant
-  public thrust_delta: number = 7.5;
+  public thrustDelta: number = 7.5;
 
   // TODO: Game should internally make and own the Application
   constructor(public app: PIXI.Application, public reactRoot: ReactDOMRoot) {
@@ -244,31 +261,38 @@ class Game {
     //     - https://reactjs.org/docs/integrating-with-other-libraries.html#extracting-data-from-backbone-models
     //     - https://reactjs.org/docs/hooks-effect.html#example-using-hooks-1
 
-    reactRoot.render(<HUD game={this}/>);
+    reactRoot.render(
+      <GameContext.Provider value={this}>
+        <UI />
+      </GameContext.Provider>
+    );
     this.buildMinimap();
-    app.stage.addChild(this.worldLayer);
-    app.stage.addChild(this.minimapContainer); // TODO: I'm sure this has something unnecessary
     this.worldLayer.addChild(this.player.referenceFrame);
     this.minimap.objects.addChild(
       this.player.referenceFrame.minimapObjectContainer
     );
 
-    this.viewportPosition = this.player.object.position;
-
     // Add initial world data
     WORLD_DATA.forEach((frame) => {
       this.referenceFrames.push(frame);
-      // The universe is always relative to the player's reference frame.
-      // Add at 0 to draw under the player
+      // The universe is drawn relative to the player's reference frame.
+      // We track other reference frames individually in this.referenceFrames, but we only draw
+      // this.player.referenceFrame, so we need to add other frames as its children.
+      // Add at 0; this maintains that player is always the last child and therefore drawn on top.
       this.player.referenceFrame.addChildAt(frame, 0);
-      // TODO
+      // TODO:
       this.minimap.objects.addChild(frame.minimapObjectContainer);
-      // frame.minimapObjectContainer.mask = this.minimap.objects_mask;
     });
+
+    this.selected = WORLD_DATA[0].objects.values().next().value;
 
     this.player.referenceFrame.addChildAt(this._playerGrid, 0);
     // this.referenceFrames[0] is coordinate frame for now :P
     this.referenceFrames[0].addChildAt(this._coordinateGrid, 0);
+
+    app.stage.addChild(this.worldLayer);
+    app.stage.addChild(this.minimap);
+    this.viewportPosition = this.player.object.position;
   }
 
   buildMinimap() {
@@ -290,8 +314,6 @@ class Game {
         .plus(this.player.object.position);
       this.followingPlayer = false;
     }).bind(this);
-
-    this.minimapContainer.addChild(this.minimap);
   }
 
   subscribe = (callback: (game: Game) => any): SubscribeToken => {
@@ -309,9 +331,6 @@ class Game {
     this.player.update(dt);
 
     let { position, velocity } = this.player.object;
-    let { x, y } = position;
-
-    this._debugInfo.forEach((o) => o.update());
 
     // We use the old position to compute doppler effects and observational delay
     // The simulator only computes new state as needed eg. as observed by the player
@@ -338,17 +357,17 @@ class Game {
 
   tick = () => {
     let t = new Date().getTime();
-    this.updateState((t - this.last_update_time) / 1000);
-    this.last_update_time = t;
+    this.updateState((t - this.lastUpdateTime) / 1000);
+    this.lastUpdateTime = t;
   };
 
   handleKeyDown = ({ code }) => {
     switch (code) {
       case 'KeyW':
-        this.player.object.thrust = this.thrust_delta;
+        this.player.object.thrust = this.thrustDelta;
         break;
       case 'KeyS':
-        this.player.object.thrust = -this.thrust_delta;
+        this.player.object.thrust = -this.thrustDelta;
         break;
       case 'KeyA':
         this.player.object.angularVelocity = -3;
@@ -405,8 +424,6 @@ let main = () => {
     antialias: true
   });
   document.body.appendChild(app.view);
-  console.log(React.useState);
-  console.log(ReactDOM.render);
 
   let reactRoot = {
     render: node => ReactDOM.render(node, document.getElementById('react-root')),

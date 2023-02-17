@@ -21,5 +21,5 @@ export default class PhysicalObject {
     resetPixiObjects(): void;
     createPixiObject(): Graphics;
     createMinimapObject(): Graphics;
-    update(properDT: any): void;
+    update(properDT: number): void;
 }
