@@ -183,16 +183,13 @@ type SubscribeToken = (game: Game) => any;
 class Game {
   // Game display info and tracking
   public worldLayer: Container = new Container();
-  // public hud: React.DOMElement = <HUD />;
-  public minimapContainer: Container = new Container();
-  // public hud: Container = new Container(); // TODO: make this React / move it outside of webgl
-  private _debugInfo: Array<ReactiveText> = [];
   public followingPlayer: boolean = true;
-
-  private _subscribers: Set<(game: Game) => any> = new Set();
-
   public minimap: Minimap;
   public viewportPosition: Vector;
+
+  // Callbacks updated after game state update
+  private _subscribers: Set<(game: Game) => any> = new Set();
+
 
   // Game viz grid
   private _playerGrid: Grid = new Grid(
@@ -213,10 +210,10 @@ class Game {
     new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
   );
   public referenceFrames: Array<ReferenceFrame> = [];
-  public last_update_time: number = new Date().getTime();
+  public lastUpdateTime: number = new Date().getTime();
 
   // Constant
-  public thrust_delta: number = 7.5;
+  public thrustDelta: number = 7.5;
 
   // TODO: Game should internally make and own the Application
   constructor(public app: PIXI.Application, public reactRoot: ReactDOMRoot) {
@@ -247,7 +244,7 @@ class Game {
     reactRoot.render(<HUD game={this}/>);
     this.buildMinimap();
     app.stage.addChild(this.worldLayer);
-    app.stage.addChild(this.minimapContainer); // TODO: I'm sure this has something unnecessary
+    app.stage.addChild(this.minimap); // TODO: I'm sure this has something unnecessary
     this.worldLayer.addChild(this.player.referenceFrame);
     this.minimap.objects.addChild(
       this.player.referenceFrame.minimapObjectContainer
@@ -290,8 +287,6 @@ class Game {
         .plus(this.player.object.position);
       this.followingPlayer = false;
     }).bind(this);
-
-    this.minimapContainer.addChild(this.minimap);
   }
 
   subscribe = (callback: (game: Game) => any): SubscribeToken => {
@@ -309,9 +304,6 @@ class Game {
     this.player.update(dt);
 
     let { position, velocity } = this.player.object;
-    let { x, y } = position;
-
-    this._debugInfo.forEach((o) => o.update());
 
     // We use the old position to compute doppler effects and observational delay
     // The simulator only computes new state as needed eg. as observed by the player
@@ -338,17 +330,17 @@ class Game {
 
   tick = () => {
     let t = new Date().getTime();
-    this.updateState((t - this.last_update_time) / 1000);
-    this.last_update_time = t;
+    this.updateState((t - this.lastUpdateTime) / 1000);
+    this.lastUpdateTime = t;
   };
 
   handleKeyDown = ({ code }) => {
     switch (code) {
       case 'KeyW':
-        this.player.object.thrust = this.thrust_delta;
+        this.player.object.thrust = this.thrustDelta;
         break;
       case 'KeyS':
-        this.player.object.thrust = -this.thrust_delta;
+        this.player.object.thrust = -this.thrustDelta;
         break;
       case 'KeyA':
         this.player.object.angularVelocity = -3;
@@ -405,8 +397,6 @@ let main = () => {
     antialias: true
   });
   document.body.appendChild(app.view);
-  console.log(React.useState);
-  console.log(ReactDOM.render);
 
   let reactRoot = {
     render: node => ReactDOM.render(node, document.getElementById('react-root')),
