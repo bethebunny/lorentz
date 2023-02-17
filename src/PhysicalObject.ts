@@ -62,7 +62,7 @@ export default class PhysicalObject {
     // TODO: these should probably throw instead
     return new Graphics();
   }
-  update(properDT) {
+  update(properDT: number) {
     this.t += properDT;
     let { position, velocity, direction } = this;
     let acceleration = this.properAcceleration();
