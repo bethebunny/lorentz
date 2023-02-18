@@ -45,6 +45,7 @@ export default class PhysicalObject {
     resetPixiObjects() {
         let { pixiObject, minimapObject } = this;
         this.pixiObject = this.createPixiObject();
+        this.pixiObject.interactive = true;
         this.minimapObject = this.createMinimapObject();
         this.minimapObject.scale.set(1 / MINIMAP_SCALE, 1 / MINIMAP_SCALE);
         if (this._referenceFrame) {

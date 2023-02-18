@@ -4,7 +4,7 @@ import Minimap from './Minimap.js';
 import Ship from './Ship.js';
 import Station from './Station.js';
 import ReferenceFrame from './ReferenceFrame.js';
-import { Container, Graphics, Text, TextStyle } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import { Container, Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import { React, ReactDOM } from 'https://unpkg.com/es-react/dev';
 const { createContext, useContext, useState, useEffect, Component } = React;
@@ -70,6 +70,7 @@ class Grid extends Graphics {
         // }
     }
     setPosition({ x, y }) {
+        let posMod = (x, n) => ((x % n) + n) % n;
         this.position.set(posMod(x, this.step), posMod(y, this.step));
     }
 }
@@ -90,28 +91,25 @@ class Player {
         this.referenceFrame.position.set(this.object.position.x, this.object.position.y);
     }
 }
-let posMod = (x, n) => ((x % n) + n) % n;
-// TODO: replace this with actual React and just render over the webgl :P
-class ReactiveText {
-    updateText;
-    pixiObject;
-    constructor(updateText, style = {}) {
-        this.updateText = updateText;
-        this.pixiObject = new Text('', new TextStyle({ ...style }));
-    }
-    update() {
-        // TODO: this currently updates every frame, it should be able to be marked as dirty or something
-        this.pixiObject.text = this.updateText();
-    }
-}
 const GameContext = createContext(null);
-function useGameState(stateFn) {
+// Used to allow custom types to not update state in useGameState if they're "equal".
+function customReconciliation(oldValue, newValue) {
+    if (oldValue instanceof Vector && newValue instanceof Vector) {
+        return oldValue.x === newValue.x && oldValue.y === newValue.y ? oldValue : newValue;
+    }
+    return newValue;
+}
+function useGameState(stateFn, memo = []) {
     const game = useContext(GameContext);
     const [gameState, setGameState] = useState(stateFn(game));
+    // Using gameState directly would be saved in the closure to be the original value.
+    // We need to somehow be able to get the _new_ state value inside the closure for when it calls.
+    // Solution: we use the _updater_ API (https://beta.reactjs.org/reference/react/useState#updating-state-based-on-the-previous-state)
+    // to get the current state for reconciliation.
     useEffect(() => {
-        const token = game.subscribe(game => setGameState(stateFn(game)));
+        const token = game.subscribe(game => setGameState(gameState => customReconciliation(gameState, stateFn(game))));
         return () => game.unsubscribe(token);
-    }, [game]);
+    }, [game, ...memo]);
     return gameState;
 }
 function HUD({ player }) {
@@ -144,7 +142,7 @@ function InspectionPane({ selected }) {
         return React.createElement("div", null);
     }
     const time = useGameState(() => selected.t);
-    const position = useGameState(() => selected.position);
+    const position = useGameState(() => selected.position, [selected]);
     return React.createElement("div", { className: "inspectionPane" },
         React.createElement("p", null,
             "Name: ",
@@ -230,6 +228,13 @@ class Game {
             this.player.referenceFrame.addChildAt(frame, 0);
             // TODO:
             this.minimap.objects.addChild(frame.minimapObjectContainer);
+            // Yikes, we probably need a better way for objects to be able to update game state?
+            // I really don't want to be maintaining this for newly created objects etc.
+            frame.objects.forEach(object => {
+                if (object !== this.player.object && object.pixiObject.interactive) {
+                    object.pixiObject.on('pointerdown', () => this.selected = object);
+                }
+            });
         });
         this.selected = WORLD_DATA[0].objects.values().next().value;
         this.player.referenceFrame.addChildAt(this._playerGrid, 0);
@@ -322,6 +327,8 @@ class Game {
             case 'KeyD':
                 this.player.object.angularVelocity = 0;
                 break;
+            case 'Escape':
+                this.selected = null;
         }
     };
     handleKeyPress = ({ key, code }) => {

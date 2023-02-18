@@ -84,6 +84,7 @@ class Grid extends Graphics {
     // }
   }
   setPosition({ x, y }: Vector) {
+    let posMod = (x: number, n: number): number => ((x % n) + n) % n;
     this.position.set(posMod(x, this.step), posMod(y, this.step));
   }
 }
@@ -112,30 +113,28 @@ class Player {
   }
 }
 
-let posMod = (x: number, n: number): number => ((x % n) + n) % n;
-
-// TODO: replace this with actual React and just render over the webgl :P
-class ReactiveText {
-  public pixiObject: Text;
-  constructor(readonly updateText: () => string, style = {}) {
-    this.pixiObject = new Text('', new TextStyle({ ...style }));
-  }
-  update() {
-    // TODO: this currently updates every frame, it should be able to be marked as dirty or something
-    this.pixiObject.text = this.updateText();
-  }
-}
-
 const GameContext = createContext(null);
 
-function useGameState<T>(stateFn: (game: Game) => T): T {
+// Used to allow custom types to not update state in useGameState if they're "equal".
+function customReconciliation<T>(oldValue: T, newValue: T): T {
+  if (oldValue instanceof Vector && newValue instanceof Vector) {
+    return oldValue.x === newValue.x && oldValue.y === newValue.y ? oldValue : newValue;
+  }
+  return newValue;
+}
+
+function useGameState<T>(stateFn: (game: Game) => T, memo: Array<any> = []): T {
   const game = useContext(GameContext);
   const [gameState, setGameState] = useState(stateFn(game));
 
+  // Using gameState directly would be saved in the closure to be the original value.
+  // We need to somehow be able to get the _new_ state value inside the closure for when it calls.
+  // Solution: we use the _updater_ API (https://beta.reactjs.org/reference/react/useState#updating-state-based-on-the-previous-state)
+  // to get the current state for reconciliation.
   useEffect(() => {
-    const token = game.subscribe(game => setGameState(stateFn(game)));
+    const token = game.subscribe(game => setGameState(gameState => customReconciliation(gameState, stateFn(game))));
     return () => game.unsubscribe(token);
-  }, [game]);
+  }, [game, ...memo]);
 
   return gameState;
 }
@@ -162,7 +161,7 @@ function InspectionPane({selected}: {selected: PhysicalObject}) {
   }
 
   const time = useGameState(() => selected.t);
-  const position = useGameState(() => selected.position);
+  const position = useGameState(() => selected.position, [selected]);
 
   return <div className="inspectionPane">
     <p>Name: {selected.toString()}</p>
@@ -282,6 +281,13 @@ class Game {
       this.player.referenceFrame.addChildAt(frame, 0);
       // TODO:
       this.minimap.objects.addChild(frame.minimapObjectContainer);
+      // Yikes, we probably need a better way for objects to be able to update game state?
+      // I really don't want to be maintaining this for newly created objects etc.
+      frame.objects.forEach(object => {
+        if (object !== this.player.object && object.pixiObject.interactive) {
+          object.pixiObject.on('pointerdown', () => this.selected = object);
+        }
+      })
     });
 
     this.selected = WORLD_DATA[0].objects.values().next().value;
@@ -396,6 +402,8 @@ class Game {
       case 'KeyD':
         this.player.object.angularVelocity = 0;
         break;
+      case 'Escape':
+        this.selected = null;
     }
   };
 
