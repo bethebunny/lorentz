@@ -18,6 +18,7 @@ export default class PhysicalObject {
   public minimapObject: Graphics | null = null;
 
   constructor(
+    public name: string,
     public position: Vector,
     public velocity: Vector = new Vector(),
     public direction: Vector = new Vector(1, 0),
@@ -32,6 +33,16 @@ export default class PhysicalObject {
       forces = forces.plus(force);
     });
     return forces.times(1 / this.mass);
+  }
+  observedDistance(o: PhysicalObject): number {
+    // TODO: I haven't validated that any of this is correct yet
+    const trueDelta = o.position.minus(this.position);
+    // I suspect there's some problems with this; should this be considered a boost?
+    // TODO: Also, I'm currently not _rendering_ other objects as being closer even if they're going
+    //       fast relative to me, in other words there should be a lorentz contraction based on my relative
+    //       velocity to other objects, and not just based on _player_ velocity relative to the lab frame
+    const relativeVelocity = this.velocity.minus(o.velocity);
+    return trueDelta.magnitude() / relativeVelocity.project(trueDelta).gamma();
   }
   set referenceFrame(frame) {
     if (this._referenceFrame) {
