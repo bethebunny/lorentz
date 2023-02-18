@@ -4,10 +4,10 @@ import Minimap from './Minimap.js';
 import Ship from './Ship.js';
 import Station from './Station.js';
 import ReferenceFrame from './ReferenceFrame.js';
-import { Container, Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
+import { Container, Graphics, } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import { React, ReactDOM } from 'https://unpkg.com/es-react/dev';
-const { createContext, useContext, useState, useEffect, Component } = React;
+const { createContext, useContext, useState, useEffect } = React;
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
 import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
 let WebFont = window.WebFont;
@@ -23,6 +23,9 @@ if (_WebFont)
     - Inventory
     - Triangular ship
     - Particles for thrust
+    - Render lorentz contraction correctly for other moving entities
+      - Currently contraction is based on player relative to lab frame, not relative to other entities
+        which is correct only for "non-moving" entities
     - Speed up animations based on time dilation
     - Have Wigner rotation rotate the world rather than the player
     - Thomas precession
@@ -135,38 +138,45 @@ function HUD({ player }) {
             acceleration.toString()),
         React.createElement("p", null,
             "Time: ",
-            time.toFixed(3)));
+            time.toFixed(0)));
 }
-function InspectionPane({ selected }) {
+function InspectionPane({ player, selected }) {
     if (selected === null) {
         return React.createElement("div", null);
     }
-    const time = useGameState(() => selected.t);
+    const time = useGameState(() => selected.t, [selected]);
     const position = useGameState(() => selected.position, [selected]);
-    return React.createElement("div", { className: "inspectionPane" },
+    // Implicitly used in observedDistance
+    const _playerPosition = useGameState(() => player.object.position);
+    const _selectedVelocity = useGameState(() => selected.velocity, [selected]);
+    const observedDistance = player.object.observedDistance(selected);
+    return React.createElement("div", { className: "panel inspectionPane" },
         React.createElement("p", null,
             "Name: ",
             selected.toString()),
         React.createElement("p", null,
             "Time: ",
-            time.toFixed(3)),
+            time.toFixed(0)),
         React.createElement("p", null,
             "Position: ",
             position.toString()),
-        React.createElement("p", null, "Distance, relative velocity/gamma, ETA: TODO"));
+        React.createElement("p", null,
+            "Distance: ",
+            observedDistance.toFixed(1)),
+        React.createElement("p", null, "Relative velocity/gamma, ETA: TODO"));
 }
 function UI() {
     const player = useGameState(game => game.player);
     const selected = useGameState(game => game.selected);
     return React.createElement("div", null,
         React.createElement(HUD, { player: player }),
-        React.createElement(InspectionPane, { selected: selected }));
+        React.createElement(InspectionPane, { player: player, selected: selected }));
 }
 const WORLD_DATA = [
     new ReferenceFrame(new Vector(0, 0), new Set([
-        new Station(new Vector(-4000, 0)),
-        new Station(new Vector(250, 250)),
-        new Station(new Vector(4000, 0))
+        new Station('Station Alpha', new Vector(-4000, 0)),
+        new Station('Station Beta', new Vector(250, 250)),
+        new Station('Station Gamma', new Vector(4000, 0))
     ]))
 ];
 class Game {
@@ -184,7 +194,7 @@ class Game {
     _playerGrid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x555555);
     _coordinateGrid = new Grid(new Vector(-1000, -1000), new Vector(1000, 1000), 100, 0x448844);
     // Game world state
-    player = new Player(new Ship(new Vector(2000, 0), new Vector(0.01, 0.03)));
+    player = new Player(new Ship('Player', new Vector(2000, 0), new Vector(0.01, 0.03)));
     referenceFrames = [];
     lastUpdateTime = new Date().getTime();
     // Constant

@@ -12,13 +12,11 @@ import ReferenceFrame from './ReferenceFrame.js';
 import {
   Container,
   Graphics,
-  Text,
-  TextStyle
 } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 
 import { React, ReactDOM } from 'https://unpkg.com/es-react/dev';
-const { createContext, useContext, useState, useEffect, Component } = React;
+const { createContext, useContext, useState, useEffect } = React;
 
 // WebFont is janky, see https://github.com/typekit/webfontloader/issues/393
 import * as _WebFont from 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js';
@@ -35,6 +33,9 @@ if (_WebFont) Object.defineProperty(window.WebFont, 'loaded', { value: true });
     - Inventory
     - Triangular ship
     - Particles for thrust
+    - Render lorentz contraction correctly for other moving entities
+      - Currently contraction is based on player relative to lab frame, not relative to other entities
+        which is correct only for "non-moving" entities
     - Speed up animations based on time dilation
     - Have Wigner rotation rotate the world rather than the player
     - Thomas precession
@@ -151,23 +152,29 @@ function HUD({player}: {player: Player}) {
     <p>Gamma: {velocity.gamma().toFixed(5)}</p>
     <p>Velocity direction: {velocity.unit().toString()}</p>
     <p>Acceleration: {acceleration.toString()}</p>
-    <p>Time: {time.toFixed(3)}</p>
+    <p>Time: {time.toFixed(0)}</p>
   </div>;
 }
 
-function InspectionPane({selected}: {selected: PhysicalObject}) {
+function InspectionPane({player, selected}: {player: Player, selected: PhysicalObject}) {
   if (selected === null) {
     return <div />;
   }
 
-  const time = useGameState(() => selected.t);
+  const time = useGameState(() => selected.t, [selected]);
   const position = useGameState(() => selected.position, [selected]);
+  // Implicitly used in observedDistance
+  const _playerPosition = useGameState(() => player.object.position);
+  const _selectedVelocity = useGameState(() => selected.velocity, [selected]);
 
-  return <div className="inspectionPane">
+  const observedDistance = player.object.observedDistance(selected);
+
+  return <div className="panel inspectionPane">
     <p>Name: {selected.toString()}</p>
-    <p>Time: {time.toFixed(3)}</p>
+    <p>Time: {time.toFixed(0)}</p>
     <p>Position: {position.toString()}</p>
-    <p>Distance, relative velocity/gamma, ETA: TODO</p>
+    <p>Distance: {observedDistance.toFixed(1)}</p>
+    <p>Relative velocity/gamma, ETA: TODO</p>
   </div>;
 }
 
@@ -177,7 +184,7 @@ function UI() {
 
   return <div>
     <HUD player={player}/>
-    <InspectionPane selected={selected}/>
+    <InspectionPane player={player} selected={selected}/>
   </div>
 }
 
@@ -185,9 +192,9 @@ const WORLD_DATA = [
   new ReferenceFrame(
     new Vector(0, 0),
     new Set([
-      new Station(new Vector(-4000, 0)),
-      new Station(new Vector(250, 250)),
-      new Station(new Vector(4000, 0))
+      new Station('Station Alpha', new Vector(-4000, 0)),
+      new Station('Station Beta', new Vector(250, 250)),
+      new Station('Station Gamma', new Vector(4000, 0))
     ])
   )
 ];
@@ -226,7 +233,7 @@ class Game {
 
   // Game world state
   public player: Player = new Player(
-    new Ship(new Vector(2000, 0), new Vector(0.01, 0.03))
+    new Ship('Player', new Vector(2000, 0), new Vector(0.01, 0.03))
   );
   public referenceFrames: Array<ReferenceFrame> = [];
   public lastUpdateTime: number = new Date().getTime();

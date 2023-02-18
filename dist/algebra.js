@@ -61,7 +61,7 @@ export class Vector {
         return Matrix2D.fromEigenvectors(this, this.gamma(), this.orthogonal(), 1);
     }
     toString() {
-        return `V{${this.x.toFixed(5)}, ${this.y.toFixed(5)}}`;
+        return `V{${this.x.toFixed(2)}, ${this.y.toFixed(2)}}`;
     }
 }
 export class Matrix2D {

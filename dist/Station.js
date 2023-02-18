@@ -4,7 +4,6 @@ import * as PIXI from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/brow
 export default class Station extends PhysicalObject {
     size = 180;
     color = 0xffffff;
-    name = 'Station 1';
     text = null;
     update(properDT) {
         super.update(properDT);
@@ -51,6 +50,9 @@ export default class Station extends PhysicalObject {
             text.visible = false;
         });
         return g;
+    }
+    toString() {
+        return this.name;
     }
 }
 //# sourceMappingURL=Station.js.map

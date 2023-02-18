@@ -2,6 +2,7 @@ import { Vector, rotationMatrix } from './algebra.js';
 import { MINIMAP_SCALE } from './constants.js';
 import { Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
 export default class PhysicalObject {
+    name;
     position;
     velocity;
     direction;
@@ -16,7 +17,8 @@ export default class PhysicalObject {
     _referenceFrame = null;
     pixiObject = null;
     minimapObject = null;
-    constructor(position, velocity = new Vector(), direction = new Vector(1, 0), mass = PhysicalObject.MASS) {
+    constructor(name, position, velocity = new Vector(), direction = new Vector(1, 0), mass = PhysicalObject.MASS) {
+        this.name = name;
         this.position = position;
         this.velocity = velocity;
         this.direction = direction;
@@ -31,6 +33,16 @@ export default class PhysicalObject {
             forces = forces.plus(force);
         });
         return forces.times(1 / this.mass);
+    }
+    observedDistance(o) {
+        // TODO: I haven't validated that any of this is correct yet
+        const trueDelta = o.position.minus(this.position);
+        // I suspect there's some problems with this; should this be considered a boost?
+        // TODO: Also, I'm currently not _rendering_ other objects as being closer even if they're going
+        //       fast relative to me, in other words there should be a lorentz contraction based on my relative
+        //       velocity to other objects, and not just based on _player_ velocity relative to the lab frame
+        const relativeVelocity = this.velocity.minus(o.velocity);
+        return trueDelta.magnitude() / relativeVelocity.project(trueDelta).gamma();
     }
     set referenceFrame(frame) {
         if (this._referenceFrame) {
