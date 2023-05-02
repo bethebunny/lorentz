@@ -19,7 +19,7 @@ I recommend using VSCode for development.
 2. Clone this repo
 
 ```
-git clone https://github.com/bethebunny/lorentz.git
+git clone https://github.com/bethebunny/lorentz
 cd lorentz
 ```
 
@@ -34,15 +34,13 @@ npm install && npm install typescript
 This will set up a watcher to rebuild on file changes, with <1s build times once running
 
 ```
-npx tsc --project . --watch
+npm run watch
 ```
 
 5. Local webserver
 
 ```
-cp index.html dist/index.html
-ln -s ../src dist/src  # sets up source maps
-python -m http.server -d dist
+python -m http.server
 ```
 
 6. Open your browser to https://localhost:8000
