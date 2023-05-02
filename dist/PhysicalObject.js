@@ -1,7 +1,7 @@
 import { Vector, rotationMatrix } from './algebra.js';
 import { MINIMAP_SCALE } from './constants.js';
 import { Graphics } from 'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.1.3/browser/pixi.mjs';
-export default class PhysicalObject {
+class PhysicalObject {
     name;
     position;
     velocity;
@@ -100,4 +100,5 @@ export default class PhysicalObject {
         this.minimapObject.position.set(this.position.x, this.position.y);
     }
 }
+export default PhysicalObject;
 //# sourceMappingURL=PhysicalObject.js.map
